@@ -1,5 +1,5 @@
+import { tageText } from './format.js';
 import { h, icon, kachel, leerHinweis } from './ui.js';
-import { oeffneUebungen } from './uebungen.js';
 import { oeffneSicherung } from './sicherung-sheet.js';
 
 const TABS = [
@@ -8,23 +8,27 @@ const TABS = [
   { id: 'rekorde', label: 'Rekorde', iconName: 'i-trophy' }
 ];
 
+const artenListe = h('div', { class: 'list', id: 'arten-liste' });
+
 function ansichtTraining() {
   return h('div', { class: 'view' },
     h('div', { class: 'title-row' },
       h('h1', { class: 'largetitle', text: 'Training' }),
       h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
         icon('i-sync', 's24'))),
-    h('div', { class: 'list' },
-      h('button', { class: 'row', type: 'button', onclick: oeffneUebungen },
-        kachel('i-dumbbell'),
-        h('div', { class: 'main t', text: 'Übungen' }),
-        icon('i-chev', 's16 chev'))),
-    h('div', { class: 'abstand-32' }),
-    leerHinweis({
-      iconName: 'i-dumbbell',
-      headline: 'Hier startest du bald dein Training',
-      subhead: 'Bis dahin kannst du Übungen ansehen, eigene anlegen und deine Daten sichern.'
-    }));
+    h('div', { class: 'section-h oben-8', text: 'Trainingsart wählen' }),
+    artenListe,
+    h('div', { class: 'abstand-16' }));
+}
+
+/** Screen 01: alle Arten mit „zuletzt“. Zeile antippen = Check-in. */
+export function setzeArten(arten, zuletzt, beiTipp) {
+  artenListe.replaceChildren(...arten.map((a) =>
+    h('button', { class: 'row', type: 'button', 'data-art': a.id, onclick: () => beiTipp(a) },
+      kachel(a.icon),
+      h('div', { class: 'main t', text: a.name }),
+      h('div', { class: 'val', text: tageText(zuletzt.get(a.id) || null) }),
+      icon('i-chev', 's16 chev'))));
 }
 
 function ansichtLeer(titel, hinweis) {

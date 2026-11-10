@@ -26,6 +26,8 @@ async function ladeStand() {
   aktualisiereAnzeige();
 }
 
+const meldeAenderung = () => window.dispatchEvent(new Event('gym-daten-geaendert'));
+
 function ladeHerunter(datei) {
   const url = URL.createObjectURL(datei);
   const link = h('a', { href: url, download: datei.name });
@@ -79,6 +81,7 @@ function exportiere() {
 async function fuehreImportAus(pruefung, inhalt, datum, mitKopie) {
   try {
     await db.importiere(pruefung.daten, pruefung.exportiertAm, { mitKopie });
+    meldeAenderung();
     await ladeStand();
   } catch {
     await zeigeAlert(F2);
@@ -163,6 +166,7 @@ async function frageRueckgaengig() {
 
   try {
     await db.machImportRueckgaengig();
+    meldeAenderung();
     await ladeStand();
   } catch {
     await zeigeAlert(F2);

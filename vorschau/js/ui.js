@@ -124,10 +124,25 @@ export function oeffneSheet({ klasse = '', baue, beiZu }) {
   const dim = h('div', { class: 'dim', onclick: schliessen });
   sheet.append(...[baue(schliessen)].flat().filter(Boolean));
   ebene.append(dim, sheet);
+  ebene.zu = schliessen;
   neueEbene(ebene);
 
   sheet.querySelectorAll('.grabber, .sheet-head, .sheet-nav').forEach((g) => wischen(g, sheet, 1, schliessen));
   return { schliessen, el: sheet };
+}
+
+/** Schließt alle offenen Sheets und Alerts (z. B. beim Auto-Ende). */
+export function schliesseAlles() {
+  [...stapel].reverse().forEach((ebene) => ebene.zu?.());
+}
+
+export const offeneEbenen = () => stapel.length;
+
+/** Tippen auf diesen Knopf nimmt einem Eingabefeld nicht den Fokus (Tastatur bleibt). */
+export function behaeltFokus(knopf) {
+  knopf.addEventListener('pointerdown', (e) => e.preventDefault());
+  knopf.addEventListener('mousedown', (e) => e.preventDefault());
+  return knopf;
 }
 
 export function sheetKopf(titel, schliessen, klasse = '') {
@@ -146,6 +161,7 @@ export function zeigeAlert({ titel, text, knoepfe }) {
   return new Promise((fertig) => {
     const ebene = h('div', { class: 'ebene ebene-alert' });
     let gewaehlt = false;
+    ebene.zu = () => { if (!gewaehlt) { gewaehlt = true; entferneEbene(ebene); fertig(null); } };
     const waehle = (k) => {
       if (gewaehlt) return;
       gewaehlt = true;
@@ -160,7 +176,7 @@ export function zeigeAlert({ titel, text, knoepfe }) {
         h('div', { class: `acts ${knoepfe.length === 3 ? 'gestapelt' : ''}`.trim() },
           knoepfe.map((k) => h('button', {
             type: 'button',
-            class: k.fett ? 'fett' : '',
+            class: [k.fett && 'fett', k.rot && 'rot'].filter(Boolean).join(' '),
             text: k.label,
             onclick: () => waehle(k)
           })))));

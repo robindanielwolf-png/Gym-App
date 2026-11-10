@@ -1,8 +1,8 @@
 // IndexedDB: Stores, Migrationen, Startdaten und die atomaren Schreibvorgänge.
 import { DB_NAME } from './umgebung.js';
-import { TRAININGSARTEN, STARTLISTE } from './startdaten.js';
+import { TRAININGSARTEN, STARTLISTE, STANDARD_MODUS, startModus } from './startdaten.js';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 // Datenbereiche, die in die Sicherung gehören, mit dem Schema, in dem sie dazukamen.
 // plaene und koerpergewicht bleiben bis zu ihren Funktionen in V2 leer.
@@ -24,6 +24,7 @@ const ALLE_STORES = [...DATEN_STORES, META, KOPIE];
 
 const META_LETZTE_SICHERUNG = 'letzteSicherung';
 const META_ENTWURF_UEBUNG = 'entwurfUebung';
+const META_ENTWURF_SATZ = 'entwurfSatz';
 
 // Migrationen ergänzen nur: `struktur` legt neue Stores oder Indizes an, `felder` setzt je
 // Store fehlende Felder auf einen Standardwert. Die Funktionen laufen beim Datenbank-Upgrade,
@@ -51,6 +52,25 @@ export const MIGRATIONEN = [
 
       db.createObjectStore('plaene', { keyPath: 'id' });
       db.createObjectStore('koerpergewicht', { keyPath: 'id' });
+    }
+  },
+  {
+    // 0.2.0: Modus für Körpergewicht-Übungen, Reihenfolge der Übungen im Training,
+    // Zeitpunkt je Satz/Cardio-Eintrag. Die Übung Liegestütze ergänzt `initialisiere`.
+    ziel: 2,
+    felder: {
+      uebungen(u) {
+        if (!('modus' in u)) u.modus = u.geraet === 'kg' ? (startModus(u.id) || STANDARD_MODUS) : null;
+      },
+      trainings(t) {
+        if (!('uebungIds' in t)) t.uebungIds = [];
+      },
+      saetze(s) {
+        if (!('erstelltAm' in s)) s.erstelltAm = null;
+      },
+      cardio(c) {
+        if (!('erstelltAm' in c)) c.erstelltAm = null;
+      }
     }
   }
 ];
@@ -264,5 +284,53 @@ export function leseEntwurfUebung() {
 export function setzeEntwurfUebung(entwurf) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_ENTWURF_UEBUNG, entwurf);
+  });
+}
+
+/** Alle Trainingsdaten auf einmal (für Start, Training und Sicherung). */
+export function leseDaten() {
+  return mitTransaktion(DATEN_STORES, 'readonly', leseAlles);
+}
+
+export function speichereTraining(training) {
+  return mitTransaktion(['trainings'], 'readwrite', (t) => {
+    t.objectStore('trainings').put(training);
+  });
+}
+
+/** Löscht ein Training samt Sätzen und Cardio-Einträgen (nur für leere Trainings genutzt). */
+export function loescheTraining(id) {
+  return mitTransaktion(['trainings', 'saetze', 'cardio', META], 'readwrite', async (t) => {
+    for (const name of ['saetze', 'cardio']) {
+      const keys = await anfrage(t.objectStore(name).index('trainingId').getAllKeys(id));
+      keys.forEach((k) => t.objectStore(name).delete(k));
+    }
+    t.objectStore('trainings').delete(id);
+    schreibeMeta(t, META_ENTWURF_SATZ, null);
+  });
+}
+
+/** Speichert einen Satz bzw. Cardio-Eintrag; gleichzeitig wird der Eingabe-Entwurf gelöscht. */
+export function speichereEintrag(store, eintrag) {
+  return mitTransaktion([store, META], 'readwrite', (t) => {
+    t.objectStore(store).put(eintrag);
+    schreibeMeta(t, META_ENTWURF_SATZ, null);
+  });
+}
+
+export function loescheEintrag(store, id) {
+  return mitTransaktion([store, META], 'readwrite', (t) => {
+    t.objectStore(store).delete(id);
+    schreibeMeta(t, META_ENTWURF_SATZ, null);
+  });
+}
+
+export function leseEntwurfSatz() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ENTWURF_SATZ));
+}
+
+export function setzeEntwurfSatz(entwurf) {
+  return mitTransaktion([META], 'readwrite', (t) => {
+    schreibeMeta(t, META_ENTWURF_SATZ, entwurf);
   });
 }

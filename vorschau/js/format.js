@@ -13,7 +13,14 @@ export function datumZeit(iso) {
   return `${datumLang(iso)}, ${zwei(d.getHours())}:${zwei(d.getMinutes())}`;
 }
 
-export function letzteSicherungText(iso, jetzt = new Date()) {
+/** 18:05 */
+export function uhrzeit(iso) {
+  const d = new Date(iso);
+  return `${zwei(d.getHours())}:${zwei(d.getMinutes())}`;
+}
+
+/** noch nie · heute · gestern · vor 8 Tagen (Kalendertage) */
+export function tageText(iso, jetzt = new Date()) {
   if (!iso) return 'noch nie';
   const d = new Date(iso);
   const tag = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
@@ -22,6 +29,8 @@ export function letzteSicherungText(iso, jetzt = new Date()) {
   if (tage === 1) return 'gestern';
   return `vor ${tage} Tagen`;
 }
+
+export const letzteSicherungText = tageText;
 
 export function inhaltText({ trainings, eigene }) {
   if (trainings === 1) return '1 Training';
@@ -37,5 +46,20 @@ export function positiveZahl(eingabe) {
   const text = eingabe.trim();
   if (!/^\d+([.,]\d+)?$/.test(text)) return null;
   const wert = Number(text.replace(',', '.'));
+  return wert > 0 ? wert : null;
+}
+
+/** Zahl ab 0 aus einer Eingabe mit Komma oder Punkt, sonst null. */
+export function nichtNegativeZahl(eingabe) {
+  const text = String(eingabe).trim();
+  if (!/^\d+([.,]\d+)?$/.test(text)) return null;
+  return Number(text.replace(',', '.'));
+}
+
+/** Ganze Zahl größer 0, sonst null. */
+export function ganzeZahl(eingabe) {
+  const text = String(eingabe).trim();
+  if (!/^\d{1,4}$/.test(text)) return null;
+  const wert = Number(text);
   return wert > 0 ? wert : null;
 }

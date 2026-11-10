@@ -37,10 +37,23 @@ const PULL_SA_O = ['pull', 'schulter-arme', 'oberkoerper'];
 const PULL_RB_O = ['pull', 'ruecken-brust', 'oberkoerper'];
 const BEINE_U = ['beine', 'unterkoerper'];
 
-const uebung = (id, name, geraetId, artIds) => {
+// Modus nur bei Gerät KG: 'zusatz' = Zusatzgewicht möglich (0 = ohne), 'nurWdh' = kein Gewicht.
+export const MODI = [
+  { id: 'zusatz', label: 'Zusatzgewicht möglich' },
+  { id: 'nurWdh', label: 'Nur Wdh.' }
+];
+export const STANDARD_MODUS = 'zusatz';
+
+const uebung = (id, name, geraetId, artIds, modus = null) => {
   const g = geraet(geraetId);
-  return { id, name, artIds, geraet: geraetId, typ: g.typ, stufe: g.stufe, eigen: false };
+  return {
+    id, name, artIds, geraet: geraetId, typ: g.typ, stufe: g.stufe, eigen: false,
+    modus: geraetId === 'kg' ? (modus || STANDARD_MODUS) : null
+  };
 };
+
+/** Modus der Startliste, auch für die Migration von Schema 1. */
+export const startModus = (id) => STARTLISTE.find((u) => u.id === id)?.modus ?? null;
 
 export const STARTLISTE = [
   // Brust / Push
@@ -53,7 +66,8 @@ export const STARTLISTE = [
   uebung('s-schraegbank-frei', 'Schrägbankdrücken frei (Langhantel)', 'langhantel', PUSH_RB_O),
   uebung('s-schraegbank-gefuehrt', 'Schrägbankdrücken geführt (Multipresse)', 'multipresse', PUSH_RB_O),
   uebung('s-schraegbank-kurzhantel', 'Schrägbankdrücken Kurzhantel', 'kurzhantel', PUSH_RB_O),
-  uebung('s-dips', 'Dips', 'kg', ['push', 'ruecken-brust', 'schulter-arme', 'oberkoerper']),
+  uebung('s-dips', 'Dips', 'kg', ['push', 'ruecken-brust', 'schulter-arme', 'oberkoerper'], 'zusatz'),
+  uebung('s-liegestuetze', 'Liegestütze', 'kg', PUSH_RB_O, 'nurWdh'),
 
   // Schulter / Arme
   uebung('s-reverse-butterfly', 'Reverse Butterfly', 'maschine', PULL_SA_O),
@@ -68,7 +82,7 @@ export const STARTLISTE = [
   uebung('s-face-pulls', 'Face Pulls', 'kabel', PULL_SA_O),
 
   // Rücken / Pull
-  uebung('s-klimmzuege', 'Klimmzüge', 'kg', PULL_RB_O),
+  uebung('s-klimmzuege', 'Klimmzüge', 'kg', PULL_RB_O, 'zusatz'),
   uebung('s-latzug-breit', 'Latzug breit', 'kabel', PULL_RB_O),
   uebung('s-latzug-eng', 'Latzug eng (neutraler Griff)', 'kabel', PULL_RB_O),
   uebung('s-rudern-kabel-sitzend', 'Rudern Kabel sitzend', 'kabel', PULL_RB_O),
@@ -76,7 +90,7 @@ export const STARTLISTE = [
   uebung('s-kurzhantelrudern-einarmig', 'Kurzhantelrudern einarmig', 'kurzhantel', PULL_RB_O),
   uebung('s-rudern-langhantel', 'Rudern Langhantel vorgebeugt', 'langhantel', PULL_RB_O),
   uebung('s-ueberzuege-kabel', 'Überzüge am Kabel (Straight-Arm Pulldown)', 'kabel', PULL_RB_O),
-  uebung('s-rueckenstrecker', 'Rückenstrecker (Hyperextensions)', 'kg', ['pull', 'ruecken-brust', 'oberkoerper', 'unterkoerper']),
+  uebung('s-rueckenstrecker', 'Rückenstrecker (Hyperextensions)', 'kg', ['pull', 'ruecken-brust', 'oberkoerper', 'unterkoerper'], 'nurWdh'),
   uebung('s-kreuzheben', 'Kreuzheben', 'langhantel', ['pull', 'beine', 'unterkoerper']),
 
   // Beine
@@ -94,7 +108,7 @@ export const STARTLISTE = [
 
   // Bauch
   uebung('s-kabel-crunch', 'Kabel-Crunch', 'kabel', ['bauch']),
-  uebung('s-beinheben-haengend', 'Beinheben hängend', 'kg', ['bauch']),
+  uebung('s-beinheben-haengend', 'Beinheben hängend', 'kg', ['bauch'], 'nurWdh'),
 
   // Cardio
   uebung('s-laufband', 'Laufband', 'cardio', ['cardio']),

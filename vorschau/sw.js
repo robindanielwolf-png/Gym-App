@@ -1,6 +1,7 @@
 // Service Worker: legt alle App-Dateien in einen Cache und liefert sie offline aus.
-// Bei jeder neuen Version VERSION hier und in js/version.js erhöhen.
-const VERSION = '0.1.0';
+// Version und Stand immer gemeinsam ändern mit js/version.js und den versionierten
+// Modul-URLs (?v=) samt CSP-Hash der Import-Map in index.html.
+const VERSION = '0.2.0';
 // Stand innerhalb einer Version: bei jeder Dateiänderung erhöhen, damit der Cache sicher neu lädt.
 const STAND = 2;
 
@@ -26,6 +27,9 @@ const DATEIEN = [
   './js/format.js',
   './js/ui.js',
   './js/tabs.js',
+  './js/logik.js',
+  './js/training.js',
+  './js/satz.js',
   './js/uebungen.js',
   './js/sicherung-sheet.js',
   './icons/app-icon-180.png',
@@ -65,8 +69,16 @@ async function antworte(anfrage) {
   const cache = await caches.open(CACHE_NAME);
   if (anfrage.mode === 'navigate') {
     const seite = await cache.match('./index.html');
-    if (seite) return seite;
+    if (seite) return frisch(seite);
   }
   const treffer = await cache.match(anfrage, { ignoreSearch: true });
-  return treffer || fetch(anfrage);
+  return treffer ? frisch(treffer) : fetch(anfrage);
+}
+
+// Der Browser soll Antworten nicht selbst zwischenspeichern, sonst bleibt nach einem
+// Update alter Code im Speicher (WebKit). Offline liefert ohnehin dieser Cache.
+function frisch(antwort) {
+  const kopf = new Headers(antwort.headers);
+  kopf.set('Cache-Control', 'no-cache');
+  return new Response(antwort.body, { status: antwort.status, statusText: antwort.statusText, headers: kopf });
 }

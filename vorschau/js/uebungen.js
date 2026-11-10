@@ -1,10 +1,11 @@
-// Übungsliste (wie Screen 05, ohne Trainingsbezug) und „Neue Übung“ (Screen 07).
+// Screen 05 „Übung hinzufügen“ und Screen 07 „Neue Übung“.
 import * as db from './db.js';
-import { GERAETE, geraet } from './startdaten.js';
+import { GERAETE, MODI, STANDARD_MODUS, geraet } from './startdaten.js';
 import { kommaZahl, positiveZahl } from './format.js';
+import { zuletztText } from './logik.js';
 import { einmalig, h, icon, kachel, leerHinweis, oeffneSheet, sheetKopf, griff, zeigeAlert } from './ui.js';
 
-const FEHLER_F2 = {
+export const FEHLER_F2 = {
   titel: 'Das hat nicht geklappt',
   text: 'Deine Daten wurden nicht verändert. Bitte versuche es noch einmal.',
   knoepfe: [{ id: 'ok', label: 'OK', fett: true }]
@@ -12,38 +13,46 @@ const FEHLER_F2 = {
 
 const normal = (t) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
-export const oeffneUebungen = einmalig(async () => {
-  let uebungen;
-  try {
-    uebungen = await db.alleUebungen();
-  } catch {
-    zeigeAlert(FEHLER_F2);
-    return;
-  }
-
-  let segment = 'alle';
+/**
+ * Übungsauswahl im laufenden Training. Segment: Art · Alle · Eigene, vorgewählt die Art.
+ * `beiWahl(uebung)` läuft synchron im Tipp, damit das Satz-Sheet mit Tastatur öffnen kann.
+ */
+export function oeffneHinzufuegen({ art, uebungen, letztesMal, beiWahl, beiNeu }) {
+  let liste = [...uebungen];
+  let segment = art.id;
   let suche = '';
   const inhalt = h('div', { class: 'sheet-scroll' });
+  const SEGMENTE = [[art.id, art.name], ['alle', 'Alle'], ['eigene', 'Eigene']];
+  let schliessenRef = () => {};
 
-  const zeile = (u) => h('div', { class: 'row', 'data-uebung': u.id },
-    h('div', { class: 'main' },
-      h('div', { class: 't', text: u.name }),
-      h('div', { class: 'st', text: geraet(u.geraet).label })));
+  const zeile = (u) => {
+    const unter = [geraet(u.geraet).label, zuletztText(u, letztesMal.get(u.id)) || 'noch nie'].join(' · ');
+    return h('button', {
+      class: 'row', type: 'button', 'data-uebung': u.id,
+      onclick: () => { schliessenRef(); beiWahl(u); }
+    },
+    h('div', { class: 'main' }, h('div', { class: 't', text: u.name }), h('div', { class: 'st', text: unter })),
+    icon('i-plus', 's24 plus'));
+  };
 
   const zeichne = (zielId) => {
     const begriff = normal(suche.trim());
-    const quelle = segment === 'eigene' ? uebungen.filter((u) => u.eigen) : uebungen;
+    const quelle = segment === 'alle' ? liste
+      : segment === 'eigene' ? liste.filter((u) => u.eigen)
+        : liste.filter((u) => u.artIds.includes(segment));
     const treffer = quelle
       .filter((u) => normal(u.name).includes(begriff))
       .sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
 
     if (treffer.length > 0) {
       inhalt.replaceChildren(
-        h('div', { class: 'section-h oben-16', text: segment === 'eigene' ? 'Eigene' : 'Alle' }),
-        h('div', { class: 'list plain auf-weiss' }, treffer.map(zeile)));
+        h('div', { class: 'section-h oben-16', text: SEGMENTE.find(([id]) => id === segment)[1] }),
+        h('div', { class: 'list plain auf-weiss' }, treffer.map(zeile)),
+        h('div', { class: 'abstand-16' }));
     } else {
+      const keineEigenen = segment === 'eigene' && !begriff;
       inhalt.replaceChildren(h('div', { class: 'empty-liste' },
-        leerHinweis({ headline: begriff ? 'Keine Treffer' : 'Noch keine eigenen Übungen' })));
+        leerHinweis({ headline: keineEigenen ? 'Noch keine eigenen Übungen' : 'Keine Treffer' })));
     }
     if (zielId) inhalt.querySelector(`[data-uebung="${CSS.escape(zielId)}"]`)?.scrollIntoView({ block: 'center' });
   };
@@ -54,11 +63,9 @@ export const oeffneUebungen = einmalig(async () => {
     oninput: (e) => { suche = e.target.value; zeichne(); }
   });
 
-  const segKnoepfe = [['alle', 'Alle'], ['eigene', 'Eigene']].map(([id, label]) => {
+  const segKnoepfe = SEGMENTE.map(([id, label]) => {
     const b = h('button', {
-      type: 'button',
-      class: id === segment ? 'on' : '',
-      text: label,
+      type: 'button', class: id === segment ? 'on' : '', text: label,
       onclick: () => {
         segment = id;
         segKnoepfe.forEach((k) => k.classList.toggle('on', k === b));
@@ -69,31 +76,41 @@ export const oeffneUebungen = einmalig(async () => {
   });
 
   const nachAnlegen = (neu) => {
-    uebungen = [...uebungen, neu];
+    liste = [...liste, neu];
+    beiNeu(neu);
     suche = '';
     eingabe.value = '';
+    if (segment !== 'alle' && segment !== 'eigene' && !neu.artIds.includes(segment)) {
+      segment = 'alle';
+      segKnoepfe.forEach((k, i) => k.classList.toggle('on', SEGMENTE[i][0] === 'alle'));
+    }
     zeichne(neu.id);
   };
 
   oeffneSheet({
     klasse: 'voll',
-    baue: (schliessen) => [
-      griff(),
-      sheetKopf('Übungen', schliessen, 'mit-rand'),
-      h('div', { class: 'abstand-10' }),
-      h('label', { class: 'search' }, icon('i-search', 's16'), eingabe),
-      h('div', { class: 'abstand-12' }),
-      h('div', { class: 'seg' }, segKnoepfe),
-      inhalt,
-      h('div', { class: 'sheet-fuss' },
-        h('button', { class: 'btn secondary', type: 'button', onclick: () => neueUebungEinmal(nachAnlegen) },
-          icon('i-plus'), 'Neue Übung anlegen'))
-    ]
+    baue: (schliessen) => {
+      schliessenRef = schliessen;
+      return [
+        griff(),
+        sheetKopf('Übung hinzufügen', schliessen, 'mit-rand'),
+        h('div', { class: 'abstand-10' }),
+        h('label', { class: 'search' }, icon('i-search', 's16'), eingabe),
+        h('div', { class: 'abstand-12' }),
+        h('div', { class: 'seg' }, segKnoepfe),
+        inhalt,
+        h('div', { class: 'sheet-fuss' },
+          h('button', { class: 'btn secondary', type: 'button', onclick: () => neueUebungEinmal(nachAnlegen) },
+            icon('i-plus'), 'Neue Übung anlegen'))
+      ];
+    }
   });
   zeichne();
-});
+}
 
-const LEER_ENTWURF = { name: '', geraet: 'langhantel', stufe: 2.5, stufeManuell: false, artIds: [] };
+const LEER_ENTWURF = {
+  name: '', geraet: 'langhantel', stufe: 2.5, stufeManuell: false, modus: STANDARD_MODUS, artIds: []
+};
 
 const neueUebungEinmal = einmalig(oeffneNeueUebung);
 
@@ -112,9 +129,16 @@ async function oeffneNeueUebung(beiGesichert) {
   // Halb Eingetipptes übersteht App-Schließen, Anruf und Sperren.
   const merke = () => { db.setzeEntwurfUebung({ ...f }).catch(() => {}); };
 
-  const sichernKnopf = h('button', { class: 'link fett', type: 'button', text: 'Sichern' });
+  const anlegenKnopf = h('button', { class: 'btn primary', type: 'button', text: 'Übung anlegen' });
   const geraetWert = h('div', { class: 'val' });
+  const modusWert = h('div', { class: 'val' });
   const stufeWert = h('div', { class: 'val' });
+
+  const modusZeile = h('button', {
+    class: 'row', type: 'button', 'aria-label': 'Modus',
+    onclick: () => oeffneAuswahl('Modus', MODI, f.modus, (id) => { f.modus = id; merke(); aktualisiere(); })
+  }, h('div', { class: 'main t', text: 'Modus' }), modusWert, icon('i-chev', 's16 chev'));
+
   const stufeBereich = h('div', {},
     h('div', { class: 'section-h', text: 'Stufe für ±' }),
     h('div', { class: 'list plain' },
@@ -133,9 +157,11 @@ async function oeffneNeueUebung(beiGesichert) {
   const aktualisiere = () => {
     const g = geraet(f.geraet);
     geraetWert.textContent = g.label;
-    stufeBereich.hidden = g.typ === 'cardio';
+    modusZeile.hidden = f.geraet !== 'kg';
+    modusWert.textContent = MODI.find((m) => m.id === f.modus).label;
+    stufeBereich.hidden = g.typ === 'cardio' || (f.geraet === 'kg' && f.modus === 'nurWdh');
     stufeWert.textContent = `${kommaZahl(f.stufe)} kg`;
-    sichernKnopf.disabled = !istGueltig();
+    anlegenKnopf.disabled = !istGueltig();
   };
 
   const name = h('input', {
@@ -169,7 +195,7 @@ async function oeffneNeueUebung(beiGesichert) {
   oeffneSheet({
     klasse: 'voll grau',
     baue: (schliessen) => {
-      sichernKnopf.addEventListener('click', async () => {
+      anlegenKnopf.addEventListener('click', async () => {
         if (speichert || !istGueltig()) return;
         speichert = true;
         const g = geraet(f.geraet);
@@ -180,6 +206,7 @@ async function oeffneNeueUebung(beiGesichert) {
           geraet: f.geraet,
           typ: g.typ,
           stufe: g.typ === 'cardio' ? null : f.stufe,
+          modus: f.geraet === 'kg' ? f.modus : null,
           eigen: true,
           erstelltAm: new Date().toISOString()
         };
@@ -198,43 +225,45 @@ async function oeffneNeueUebung(beiGesichert) {
         h('div', { class: 'grabber grabber-grau' }),
         h('div', { class: 'sheet-nav' },
           h('button', {
-            class: 'link', type: 'button', text: 'Abbrechen',
+            class: 'link nav-seite', type: 'button', text: 'Abbrechen',
             onclick: () => { db.setzeEntwurfUebung(null).catch(() => {}); schliessen(); }
           }),
           h('b', { text: 'Neue Übung' }),
-          sichernKnopf),
-        h('div', { class: 'sheet-scroll' },
+          h('span', { class: 'nav-seite' })),
+        h('div', { class: 'sheet-scroll mit-fussleiste' },
           h('div', { class: 'section-h nah', text: 'Name' }),
           h('div', { class: 'list plain' }, h('div', { class: 'row' }, h('div', { class: 'main' }, name))),
           h('div', { class: 'section-h', text: 'Gerät' }),
           h('div', { class: 'list plain' },
             h('button', {
               class: 'row', type: 'button', 'aria-label': 'Gerät',
-              onclick: () => oeffneGeraet(f.geraet, (id) => {
+              onclick: () => oeffneAuswahl('Gerät', GERAETE, f.geraet, (id) => {
                 f.geraet = id;
                 const g = geraet(id);
                 if (!f.stufeManuell && g.stufe !== null) f.stufe = g.stufe;
                 merke();
                 aktualisiere();
               })
-            }, h('div', { class: 'main t', text: 'Gerät' }), geraetWert, icon('i-chev', 's16 chev'))),
+            }, h('div', { class: 'main t', text: 'Gerät' }), geraetWert, icon('i-chev', 's16 chev')),
+            modusZeile),
           stufeBereich,
           h('div', { class: 'section-h', text: 'Trainingsarten (mehrere möglich)' }),
-          h('div', { class: 'list' }, arten.map(artZeile)),
-          h('div', { class: 'abstand-unten' }))
+          h('div', { class: 'list' }, arten.map(artZeile))),
+        h('div', { class: 'fussleiste' }, anlegenKnopf)
       ];
     }
   });
   aktualisiere();
 }
 
-function oeffneGeraet(aktuell, beiWahl) {
+/** Auswahl-Sheet mit Häkchen (Gerät, Modus). Antippen wählt und schließt nach 200 ms. */
+function oeffneAuswahl(titel, werte, aktuell, beiWahl) {
   let gewaehlt = false;
   oeffneSheet({
     baue: (schliessen) => [
       griff(),
-      sheetKopf('Gerät', schliessen),
-      h('div', { class: 'list plain auf-weiss kein-rand oben-12' }, GERAETE.map((g) =>
+      sheetKopf(titel, schliessen),
+      h('div', { class: 'list plain auf-weiss kein-rand oben-12' }, werte.map((w) =>
         h('button', {
           class: 'row', type: 'button',
           onclick: (e) => {
@@ -242,10 +271,10 @@ function oeffneGeraet(aktuell, beiWahl) {
             gewaehlt = true;
             e.currentTarget.parentElement.querySelectorAll('.haken').forEach((x) => x.remove());
             e.currentTarget.append(icon('i-check', 'haken'));
-            beiWahl(g.id);
+            beiWahl(w.id);
             setTimeout(schliessen, 200);
           }
-        }, h('div', { class: 'main t', text: g.label }), g.id === aktuell && icon('i-check', 'haken')))),
+        }, h('div', { class: 'main t', text: w.label }), w.id === aktuell && icon('i-check', 'haken')))),
       h('div', { class: 'sheet-boden' })
     ]
   });

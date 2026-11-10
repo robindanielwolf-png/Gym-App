@@ -1,2 +1,2 @@
-// Bei jeder neuen Version hier und in sw.js erhöhen.
-export const APP_VERSION = '0.1.0';
+// Immer gemeinsam mit sw.js und der Import-Map in index.html ändern.
+export const APP_VERSION = '0.2.0';

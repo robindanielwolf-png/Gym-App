@@ -34,6 +34,7 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .section-h{font-size:13px;line-height:18px;color:var(--text-2);text-transform:uppercase;letter-spacing:.2px;padding:24px 32px 8px}
 .section-h.nah{padding-top:12px}
 .section-h.oben-16{padding-top:16px}
+.section-h.oben-8{padding-top:8px}
 
 .glass{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.9),0 1px 3px rgba(0,0,0,.08),0 4px 14px rgba(0,0,0,.08);color:var(--accent);flex:none}
 
@@ -67,7 +68,10 @@ button.row:active{background:var(--fill)}
 .btn{height:var(--h-primary);border-radius:var(--r-btn);border:0;font:600 17px/22px var(--font);width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
 .btn.primary{background:var(--accent);color:#fff}
 .btn.primary:active{background:var(--accent-pressed)}
-.btn.primary:disabled{background:var(--fill);color:var(--text-3)}
+.btn:disabled{opacity:.4;pointer-events:none}
+.btn.erfolg{background:var(--success)}
+.btn.erfolg:disabled{opacity:1}
+.btn.danger-text{background:none;color:var(--danger);height:44px;font-weight:400}
 .btn.secondary{background:var(--accent-tint);color:var(--accent)}
 .btn.plain{background:none;color:var(--accent);height:44px}
 .link{color:var(--accent);font-size:17px;line-height:22px;min-height:44px;min-width:44px}
@@ -144,6 +148,7 @@ button.row:active{background:var(--fill)}
 .acts button{flex:1;height:44px;color:var(--accent);font-size:17px;line-height:22px}
 .acts button + button{border-left:.5px solid var(--separator)}
 .acts button.fett{font-weight:600}
+.acts button.rot{color:var(--danger)}
 .acts.gestapelt{flex-direction:column}
 .acts.gestapelt button{flex:none}
 .acts.gestapelt button + button{border-left:0;border-top:.5px solid var(--separator)}
@@ -156,6 +161,53 @@ button.row:active{background:var(--fill)}
 .banner-text{min-width:0}
 .banner b{font-size:15px;line-height:20px;font-weight:600;display:block}
 .banner span{font-size:15px;line-height:20px;color:var(--text-2)}
+
+.foot-links{font-size:13px;line-height:18px;color:var(--text-2);padding:8px 16px 0}
+svg.i.plus{color:var(--accent)}
+
+/* Neue Übung: Knopf fest unten */
+.nav-seite{width:88px;text-align:left}
+.sheet-scroll.mit-fussleiste{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+.fussleiste{position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(rgba(242,242,247,0),var(--bg) 30%)}
+
+/* Laufendes Training (Screen 02) */
+.training-ansicht{position:absolute;inset:0;z-index:5;background:var(--bg)}
+.training-scroll{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-top:env(safe-area-inset-top);padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+.navbar{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 16px}
+.running{display:inline-flex;align-items:center;gap:6px;font-size:13px;line-height:18px;color:var(--text-2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--success)}
+.ex{background:var(--surface);border-radius:var(--r-card);margin:0 16px 12px;padding:14px 16px}
+.ex .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.ex .top b{font-size:17px;line-height:22px;font-weight:600;min-width:0}
+.ex .top small{font-size:13px;line-height:18px;color:var(--text-2);white-space:nowrap;flex:none}
+.sets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.sets.im-sheet{margin-top:8px}
+.chip{font-size:15px;line-height:20px;padding:6px 10px;border-radius:8px;background:var(--bg);position:relative}
+button.chip::after{content:"";position:absolute;inset:-6px -3px}
+.chip.warm{color:var(--text-3)}
+.chip.add{background:var(--accent-tint);color:var(--accent);font-weight:600}
+.rand-16{padding:0 16px}
+.btn.verwerfen{margin-top:16px}
+.rand-hinzu{padding:4px 16px}
+.bottom-bar{position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(rgba(242,242,247,0),var(--bg) 30%)}
+
+/* Satz-Sheet (Screen 03) */
+.field-label{font-size:13px;line-height:18px;color:var(--text-2);text-transform:uppercase;letter-spacing:.2px;margin:16px 0 6px}
+.stepper{display:flex;align-items:center;justify-content:space-between}
+.pm{width:var(--h-stepper);height:var(--h-stepper);border-radius:50%;background:var(--fill);display:grid;place-items:center;color:var(--accent);flex:none}
+.pm svg.i{width:28px;height:28px;stroke-width:2.5}
+.bignum{display:flex;align-items:baseline;justify-content:center;min-width:0;flex:1}
+.bignum-feld{font-size:48px;line-height:52px;font-weight:600;text-align:center;min-width:1.6ch;max-width:6ch;padding:0}
+.bignum-feld::placeholder{color:var(--text-3)}
+.bignum small{font-size:22px;font-weight:600;color:var(--text-2);margin-left:4px}
+.repfield .zahl::placeholder{color:var(--text-3)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;height:52px;margin-top:8px}
+.toggle-row span{font-size:17px}
+.switch{width:51px;height:31px;border-radius:16px;background:var(--fill);position:relative;flex:none;transition:background .2s ease-out}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:left .2s ease-out}
+.switch.on{background:var(--success)}
+.switch.on::after{left:22px}
+.switch::before{content:"";position:absolute;inset:-7px 0}
 
 .spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
