@@ -131,3 +131,38 @@ export function faelligesEnde(training, eintraege, jetzt = Date.now()) {
   if (jetzt - bezug < AUTO_ENDE_MS) return null;
   return { leer: eintraege.length === 0, endedAt: new Date(bezug + AUTO_ENDE_MS).toISOString() };
 }
+
+/**
+ * Sätze von damals für die Trainingsvorschau (nur Arbeitssätze). Gleiches Gewicht wird
+ * zusammengefasst, ein neues Gewicht steht neu: „22,5 kg × 10 / 25 kg × 8“. Ohne Arbeitssatz: null.
+ */
+export function vorschauText(uebung, eintraege) {
+  if (istCardio(uebung)) {
+    if (eintraege.length === 0) return null;
+    return eintraege.map((c) => `${kommaZahl(c.dauerMin)} min${c.km !== null ? ` · ${kommaZahl(c.km)} km` : ''}`).join(' / ');
+  }
+  const arbeit = eintraege.filter((s) => !s.aufwaermen);
+  if (arbeit.length === 0) return null;
+  if (istNurWdh(uebung) || arbeit.every((s) => s.gewicht === null)) return `${arbeit.map((s) => s.wdh).join(' / ')} Wdh.`;
+  const gruppen = [];
+  for (const s of arbeit) {
+    const letzte = gruppen.at(-1);
+    if (letzte && letzte.gewicht === s.gewicht) letzte.wdh.push(s.wdh);
+    else gruppen.push({ gewicht: s.gewicht, wdh: [s.wdh] });
+  }
+  const gewichtText = (w) => {
+    if (istZusatz(uebung)) return w > 0 ? `+${kg(w)}` : 'ohne Zusatz';
+    return kg(w);
+  };
+  return gruppen.map((g) => (g.gewicht === null
+    ? `${g.wdh.join(' / ')} Wdh.`
+    : `${gewichtText(g.gewicht)} × ${g.wdh.join(' / ')}`)).join(' / ');
+}
+
+/** Letztes Training dieser Art mit Einträgen (ohne das laufende), sonst null. */
+export function letztesTrainingDerArt(daten, artId, ausserTrainingId = null) {
+  const ids = new Set([...daten.saetze, ...daten.cardio].map((e) => e.trainingId));
+  return daten.trainings
+    .filter((t) => t.artId === artId && t.id !== ausserTrainingId && ids.has(t.id))
+    .sort((a, b) => zeit(b.startedAt) - zeit(a.startedAt))[0] || null;
+}

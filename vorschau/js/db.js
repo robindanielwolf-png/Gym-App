@@ -25,6 +25,7 @@ const ALLE_STORES = [...DATEN_STORES, META, KOPIE];
 const META_LETZTE_SICHERUNG = 'letzteSicherung';
 const META_ENTWURF_UEBUNG = 'entwurfUebung';
 const META_ENTWURF_SATZ = 'entwurfSatz';
+const META_ANSICHT = 'letzteAnsicht';
 
 // Migrationen ergänzen nur: `struktur` legt neue Stores oder Indizes an, `felder` setzt je
 // Store fehlende Felder auf einen Standardwert. Die Funktionen laufen beim Datenbank-Upgrade,
@@ -332,5 +333,16 @@ export function leseEntwurfSatz() {
 export function setzeEntwurfSatz(entwurf) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_ENTWURF_SATZ, entwurf);
+  });
+}
+
+/** Wo die App zuletzt war ('start' | 'training' | 'vorschau:<artId>'); nur Oberfläche, gehört nicht in die Sicherung. */
+export function leseLetzteAnsicht() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ANSICHT));
+}
+
+export function setzeLetzteAnsicht(ansicht) {
+  return mitTransaktion([META], 'readwrite', (t) => {
+    schreibeMeta(t, META_ANSICHT, ansicht);
   });
 }

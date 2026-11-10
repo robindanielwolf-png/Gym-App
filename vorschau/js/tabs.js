@@ -9,6 +9,8 @@ const TABS = [
 ];
 
 const artenListe = h('div', { class: 'list', id: 'arten-liste' });
+const fortsetzen = h('div', { class: 'list resume', id: 'fortsetzen', hidden: true });
+const artenTitel = h('div', { class: 'section-h oben-8', text: 'Trainingsart wählen' });
 
 function ansichtTraining() {
   return h('div', { class: 'view' },
@@ -16,18 +18,32 @@ function ansichtTraining() {
       h('h1', { class: 'largetitle', text: 'Training' }),
       h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
         icon('i-sync', 's24'))),
-    h('div', { class: 'section-h oben-8', text: 'Trainingsart wählen' }),
+    fortsetzen,
+    artenTitel,
     artenListe,
     h('div', { class: 'abstand-16' }));
 }
 
-/** Screen 01: alle Arten mit „zuletzt“. Zeile antippen = Check-in. */
-export function setzeArten(arten, zuletzt, beiTipp) {
+/**
+ * Screen 01/01c: alle Arten mit „zuletzt“ bzw. „läuft“. Zeile antippen öffnet die Vorschau.
+ * laufend: null oder { art, nebentext, beiFortsetzen } für die Zeile „<Art> läuft“.
+ */
+export function setzeArten(arten, zuletzt, beiTipp, laufend = null) {
+  fortsetzen.hidden = !laufend;
+  artenTitel.classList.toggle('oben-8', !laufend);
+  if (laufend) {
+    fortsetzen.replaceChildren(h('button', { class: 'row', type: 'button', onclick: laufend.beiFortsetzen },
+      kachel(laufend.art.icon),
+      h('div', { class: 'main' },
+        h('div', { class: 't fett', text: `${laufend.art.name} läuft` }),
+        h('div', { class: 'st mit-punkt' }, h('span', { class: 'dot' }), laufend.nebentext)),
+      h('span', { class: 'weiter' }, 'Fortsetzen', icon('i-chev', 's16'))));
+  }
   artenListe.replaceChildren(...arten.map((a) =>
     h('button', { class: 'row', type: 'button', 'data-art': a.id, onclick: () => beiTipp(a) },
       kachel(a.icon),
       h('div', { class: 'main t', text: a.name }),
-      h('div', { class: 'val', text: tageText(zuletzt.get(a.id) || null) }),
+      h('div', { class: 'val', text: laufend?.art.id === a.id ? 'läuft' : tageText(zuletzt.get(a.id) || null) }),
       icon('i-chev', 's16 chev'))));
 }
 

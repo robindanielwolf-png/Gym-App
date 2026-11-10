@@ -7,6 +7,12 @@ export function datumLang(iso) {
   return `${d.getDate()}. ${MONATE[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/** 4. Nov */
+export function datumKurz(iso) {
+  const d = new Date(iso);
+  return `${d.getDate()}. ${MONATE[d.getMonth()]}`;
+}
+
 /** 10. Nov 2026, 18:42 */
 export function datumZeit(iso) {
   const d = new Date(iso);
