@@ -20,11 +20,11 @@ export function zaehle(daten) {
   return { trainings: daten.trainings.length, eigene: daten.uebungen.filter((u) => u.eigen).length };
 }
 
-/** Leer heißt: keine Trainings, keine eigenen Übungen, keine geänderte Stufe. */
+/** Leer heißt: keine Trainings, keine eigenen Übungen, keine geänderte Stufe, kein Körpergewicht. */
 export function istLeer(daten) {
   const start = new Map(STARTLISTE.map((u) => [u.id, u.stufe]));
   const { trainings, eigene } = zaehle(daten);
-  if (trainings > 0 || eigene > 0) return false;
+  if (trainings > 0 || eigene > 0 || (daten.koerpergewicht || []).length > 0) return false;
   return daten.uebungen.every((u) => !start.has(u.id) || start.get(u.id) === u.stufe);
 }
 
@@ -68,7 +68,9 @@ function datenGueltig(d) {
   const cardio = d.cardio.every((c) =>
     verweist(c) && istZahl(c.dauerMin) && c.dauerMin > 0 && (c.km === null || (istZahl(c.km) && c.km >= 0)));
 
-  return arten && uebungen && trainings && laufend && saetze && cardio;
+  const koerpergewicht = d.koerpergewicht.every((k) => istZahl(k.kg) && k.kg > 0);
+
+  return arten && uebungen && trainings && laufend && saetze && cardio && koerpergewicht;
 }
 
 /** Prüft den vollständigen Dateiinhalt. Liefert die aufbereiteten Daten oder null. */
