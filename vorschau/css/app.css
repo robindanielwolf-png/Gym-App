@@ -403,3 +403,9 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .muskel-balken{height:6px;border-radius:3px;background:var(--fill);overflow:hidden}
 .muskel-balken > div{height:6px;border-radius:3px}
 .muskel-balken > .s1{background:#9CC9FF}.muskel-balken > .s2{background:#4DA3FF}.muskel-balken > .s3{background:#007AFF}
+/* Verlauf: letzte Trainings unter dem Kalender, lange drücken → Aktionen */
+.verlauf-letzte{padding-bottom:16px}
+.verlauf-zeile{-webkit-touch-callout:none}
+.btn.plain.mehr-anzeigen{width:auto;margin:4px auto 0;padding:0 16px;display:flex}
+.verlauf-hinweis-lang{padding:4px 32px 0}
+.aktionen{display:flex;flex-direction:column;gap:8px;padding-top:16px}

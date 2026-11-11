@@ -1,6 +1,5 @@
 import { tageText } from './format.js';
 import { h, icon, kachel, leerHinweis } from './ui.js';
-import { oeffneSicherung } from './sicherung-sheet.js';
 
 const TABS = [
   { id: 'start', label: 'Start', iconName: 'i-person' },
@@ -21,9 +20,7 @@ const tabAktivierungsCallbacks = new Map();
 function ansichtTraining() {
   return h('div', { class: 'view' },
     h('div', { class: 'title-row' },
-      h('h1', { class: 'largetitle', text: 'Training' }),
-      h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
-        icon('i-sync', 's24'))),
+      h('h1', { class: 'largetitle', text: 'Training' })),
     fortsetzen,
     naechsteKarte,
     artenTitel,

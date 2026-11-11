@@ -1,7 +1,8 @@
 // Muskelfigur vorne/hinten (dunkle Variante, Design 11.11.2026): Tab „Start“ (letzte 7 Tage),
 // Verlauf → Tag und Übersicht nach „Training beenden“.
 import * as db from './db.js';
-import { h, oeffneSheet, sheetKopf, griff } from './ui.js';
+import { h, icon, oeffneSheet, sheetKopf, griff } from './ui.js';
+import { oeffneSicherung } from './sicherung-sheet.js';
 import { registerTabUpdater } from './tab-events.js';
 import { FIGUR_VORNE, FIGUR_HINTEN } from './muskel-figur-pfade.js';
 import { MUSKELN, MUSKELN_NACH, muskelPunkte, muskelStufe, trainingsDerLetztenTage } from './muskeln.js';
@@ -99,7 +100,9 @@ export function initStartseite() {
   const ansicht = document.getElementById('start-ansicht');
   const inhalt = h('div');
   ansicht.replaceChildren(
-    h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Muskeln' })),
+    h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Muskeln' }),
+      h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
+        icon('i-sync', 's24'))),
     h('div', { class: 'start-unterzeile', text: 'Letzte 7 Tage' }),
     inhalt);
   const aktualisiere = async () => {

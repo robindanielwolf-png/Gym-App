@@ -304,7 +304,7 @@ export function speichereTraining(training) {
   });
 }
 
-/** Löscht ein Training samt Sätzen und Cardio-Einträgen (nur für leere Trainings genutzt). */
+/** Löscht ein Training samt Sätzen und Cardio-Einträgen; ein Eingabe-Entwurf nur, wenn er dazugehört. */
 export function loescheTraining(id) {
   return mitTransaktion(['trainings', 'saetze', 'cardio', META], 'readwrite', async (t) => {
     for (const name of ['saetze', 'cardio']) {
@@ -312,7 +312,8 @@ export function loescheTraining(id) {
       keys.forEach((k) => t.objectStore(name).delete(k));
     }
     t.objectStore('trainings').delete(id);
-    schreibeMeta(t, META_ENTWURF_SATZ, null);
+    const entwurf = await leseMeta(t, META_ENTWURF_SATZ);
+    if (!entwurf || entwurf.trainingId === id) schreibeMeta(t, META_ENTWURF_SATZ, null);
   });
 }
 

@@ -8,7 +8,7 @@ import { chipText, nachZeit } from './logik.js';
 import { oeffneSatz } from './satz.js';
 import { baueTrainingsFigur } from './muskel-figur.js';
 import { oeffneUebungsdetail } from './uebungsdetail.js';
-import { h, icon, oeffneSheet, sheetKopf, griff, einmalig, leerHinweis } from './ui.js';
+import { h, icon, oeffneSheet, sheetKopf, griff, einmalig, leerHinweis, zeigeAlert, zeigeHinweis } from './ui.js';
 
 /**
  * Hilfsfunktion: Gibt Trainingsarten-Map (id → trainingsart) zurück.
@@ -196,6 +196,107 @@ function oeffneTagesDetail(datenStart, trainings) {
   });
 }
 
+const LETZTE_ANFANG = 5;
+const LETZTE_MEHR = 10;
+const LANG_DRUECKEN_MS = 500;
+
+/** Beendete Trainings mit Einträgen, neueste zuerst. Das laufende Training gehört nicht in den Verlauf. */
+function beendeteTrainings(daten) {
+  const mitEintraegen = new Set([...daten.saetze, ...daten.cardio].map((e) => e.trainingId));
+  return daten.trainings.filter((t) => t.endedAt && mitEintraegen.has(t.id))
+    .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+}
+
+/** Langes Drücken (ohne Verschieben) ruft beiLang auf; der folgende Klick wird dann verschluckt. */
+function langDruecken(el, beiLang) {
+  let timer = null;
+  let start = null;
+  let ausgeloest = false;
+  const stopp = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('pointerdown', (ev) => {
+    ausgeloest = false;
+    start = [ev.clientX, ev.clientY];
+    stopp();
+    timer = setTimeout(() => { ausgeloest = true; timer = null; beiLang(); }, LANG_DRUECKEN_MS);
+  });
+  el.addEventListener('pointermove', (ev) => {
+    if (timer && Math.hypot(ev.clientX - start[0], ev.clientY - start[1]) > 10) stopp();
+  });
+  for (const art of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(art, stopp);
+  el.addEventListener('contextmenu', (ev) => ev.preventDefault());
+  el.addEventListener('click', (ev) => {
+    if (!ausgeloest) return;
+    ev.stopImmediatePropagation();
+    ev.preventDefault();
+    ausgeloest = false;
+  }, true);
+}
+
+function trainingBeschreibung(daten, training) {
+  const eintraege = eintraegeVonTraining(daten, training.id);
+  const uebungen = new Set(eintraege.map((e) => e.uebungId)).size;
+  return `${uebungen} ${uebungen === 1 ? 'Übung' : 'Übungen'} · ${eintraege.length} ${eintraege.length === 1 ? 'Satz' : 'Sätze'}`;
+}
+
+/** Aktionen nach langem Drücken: „Aktivität löschen“ mit Rückfrage (nicht rückgängig zu machen). */
+function oeffneAktionen(daten, training, art) {
+  const titel = `${art?.name || 'Training'} · ${datumLang(training.startedAt)}`;
+  oeffneSheet({
+    baue: (zu) => [
+      griff(),
+      sheetKopf(titel, zu),
+      h('p', { class: 'foot-links', text: trainingBeschreibung(daten, training) }),
+      h('div', { class: 'aktionen' },
+        h('button', {
+          class: 'btn danger-text aktion-loeschen', type: 'button', text: 'Aktivität löschen',
+          onclick: async () => {
+            zu();
+            const wahl = await zeigeAlert({
+              titel: 'Aktivität löschen?',
+              text: `${titel} mit ${trainingBeschreibung(daten, training)} wird gelöscht. Das lässt sich nicht rückgängig machen.`,
+              knoepfe: [{ id: 'nein', label: 'Abbrechen', fett: true }, { id: 'ja', label: 'Löschen', rot: true }]
+            });
+            if (wahl !== 'ja') return;
+            try {
+              await db.loescheTraining(training.id);
+            } catch {
+              zeigeAlert({ titel: 'Das hat nicht geklappt', text: 'Deine Daten wurden nicht verändert. Bitte versuche es noch einmal.', knoepfe: [{ id: 'ok', label: 'OK', fett: true }] });
+              return;
+            }
+            window.dispatchEvent(new Event('gym-daten-geaendert'));
+            zeigeHinweis({ titel: 'Aktivität gelöscht', text: titel, einzeilig: true });
+          }
+        }),
+        h('button', { class: 'btn secondary', type: 'button', text: 'Abbrechen', onclick: zu })),
+      h('div', { class: 'abstand-unten' })
+    ]
+  });
+}
+
+/** Liste „Letzte Trainings“ unter dem Kalender; antippen öffnet den Tag, lange drücken die Aktionen. */
+function baueLetzteListe(daten, anzahl, beiMehr) {
+  const alle = beendeteTrainings(daten);
+  if (alle.length === 0) return [];
+  const arten = artNach(daten);
+  const zeilen = alle.slice(0, anzahl).map((t) => {
+    const art = arten.get(t.artId);
+    const zeile = h('button', { class: 'row verlauf-zeile', type: 'button', onclick: () => oeffneTagesDetail(daten, [t]) },
+      h('div', { class: 'ico' }, icon(art?.icon || 't-push')),
+      h('div', { class: 'main' },
+        h('div', { class: 't', text: art?.name || 'Training' }),
+        h('div', { class: 'st', text: `${datumLang(t.startedAt)} · ${trainingBeschreibung(daten, t)}` })),
+      icon('i-chev', 's16 chev'));
+    langDruecken(zeile, () => oeffneAktionen(daten, t, art));
+    return zeile;
+  });
+  return [
+    h('div', { class: 'section-h', text: 'Letzte Trainings' }),
+    h('div', { class: 'list' }, zeilen),
+    alle.length > anzahl && h('button', { class: 'btn plain mehr-anzeigen', type: 'button', text: 'Mehr anzeigen', onclick: beiMehr }),
+    h('p', { class: 'foot-links verlauf-hinweis-lang', text: 'Lange drücken, um eine Aktivität zu löschen.' })
+  ].filter(Boolean);
+}
+
 /**
  * Hauptfunktion: Erstellt die Verlauf-Ansicht mit Monatskalender.
  * Sucht nach #verlauf-ansicht und füllt sie mit Inhalten.
@@ -232,7 +333,13 @@ export function initVerlauf() {
   const leer = h('div', { class: 'empty-wrap', hidden: true },
     leerHinweis({ iconName: 'i-calendar', headline: 'Noch kein Training', subhead: 'Deine Trainings erscheinen hier im Kalender.' }));
 
-  ansicht.replaceChildren(kopf, kalenderContainer, leer);
+  const letzteBereich = h('div', { class: 'verlauf-letzte' });
+  let letzteAnzahl = LETZTE_ANFANG;
+  const zeichneLetzte = () => {
+    letzteBereich.replaceChildren(...(datenGlobal ? baueLetzteListe(datenGlobal, letzteAnzahl, () => { letzteAnzahl += LETZTE_MEHR; zeichneLetzte(); }) : []));
+  };
+
+  ansicht.replaceChildren(kopf, kalenderContainer, letzteBereich, leer);
 
   /**
    * Aktualisiert die Kalender-Anzeige.
@@ -280,6 +387,7 @@ export function initVerlauf() {
   const updateHandler = einmalig(async () => {
     datenGlobal = await db.leseDaten();
     zeichneKalender();
+    zeichneLetzte();
   });
 
   // Registriere als Tab-Updater
