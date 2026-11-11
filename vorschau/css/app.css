@@ -271,3 +271,47 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .satz-mitte{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;display:flex;flex-direction:column}
 .satz-mitte > *{flex-shrink:0}
 .satz-aktion{flex:none;padding-top:8px}
+
+/* Etappe 4 (0.4.0): Verlauf-Kalender (Screen 06/08) */
+.verlauf-kopf{display:flex;flex-direction:column;padding:4px 16px 8px}
+.verlauf-kopf .largetitle{padding:0}
+.monat-nav{display:flex;align-items:center;justify-content:space-between;margin-top:12px;height:40px}
+.btn-nav{width:40px;height:40px;display:grid;place-items:center;color:var(--text);font-size:18px;font-weight:300;padding:0}
+.btn-nav:active{opacity:.6}
+.monat-anzeige{flex:1;text-align:center;font-size:17px;line-height:22px;font-weight:600}
+.kalender-container{background:var(--surface);border-radius:var(--r-card);margin:16px 16px 0;overflow:hidden}
+.calendar-header{display:grid;grid-template-columns:repeat(7,1fr);background:var(--bg);gap:.5px}
+.calendar-day-name{padding:8px 0;text-align:center;font-size:13px;line-height:18px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.2px}
+.calendar-days{display:grid;grid-template-columns:repeat(7,1fr);gap:.5px;padding:1px;background:var(--separator)}
+.calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;aspect-ratio:1;background:var(--surface);padding:6px 4px;min-height:80px;position:relative;cursor:pointer}
+.calendar-day:active{background:var(--fill)}
+.calendar-day.empty{background:transparent;cursor:default}
+.calendar-day.empty:active{background:transparent}
+.day-number{font-size:15px;line-height:20px;font-weight:600;color:var(--text);margin-bottom:4px}
+.day-icons{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
+.day-icon{width:18px;height:18px;flex:none}
+
+/* Trainingstag-Modal (Screen 08) */
+.sheet.verlauf-sheet{padding-top:8px}
+.verlauf-modal-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal-title{display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:12px;border-bottom:.5px solid var(--separator)}
+.title-icon{width:40px;height:40px;border-radius:12px;background:var(--accent-tint);display:grid;place-items:center;flex:none}
+.title-icon svg.i{color:var(--accent);width:22px;height:22px}
+.title-text{flex:1;min-width:0}
+.art-name{font-size:17px;line-height:22px;font-weight:600;color:var(--text)}
+.training-count{font-size:13px;line-height:18px;color:var(--text-2);margin-top:2px}
+.verlauf-uebung-liste{display:flex;flex-direction:column}
+.verlauf-uebung-eintrag{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:.5px solid var(--separator);cursor:pointer}
+.verlauf-uebung-eintrag:active{background:var(--fill);border-radius:8px}
+.uebung-name{font-size:17px;line-height:22px;font-weight:600;flex:1;min-width:0;overflow-wrap:break-word}
+.uebung-saetze{font-size:15px;line-height:20px;color:var(--text-2);margin-top:4px}
+.uebung-pfeil{width:24px;height:24px;display:grid;place-items:center;color:var(--text-3);flex:none;margin-left:12px}
+
+/* Tab Rekorde (Screen 09) */
+.rekorde-kopf{padding:0}
+.rekorde-kopf .title-row{padding:4px 16px 8px}
+.search-wrapper{padding:8px 16px 12px}
+.filter-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;margin:0}
+.chip{font-size:13px;line-height:18px;padding:8px 12px;border-radius:20px;background:var(--fill);color:var(--text-2);white-space:nowrap}
+.chip.on{background:var(--accent);color:#fff;font-weight:600}
+.chip:active{opacity:.8}

@@ -96,6 +96,9 @@ export function rekorde(uebung, eintraege) {
   if (istNurWdh(uebung)) {
     return { art: 'wdh', meisteWdh: s.length ? Math.max(...s.map((x) => x.wdh)) : null };
   }
+  if (istZeit(uebung)) {
+    return { art: 'zeit', laengsteZeit: s.length ? Math.max(...s.map((x) => x.wdh)) : null };
+  }
   const mitGewicht = s.filter((x) => typeof x.gewicht === 'number');
   const schwerster = (liste) => liste.reduce((best, x) => (!best || x.gewicht > best.gewicht
     || (x.gewicht === best.gewicht && x.wdh > best.wdh) ? { gewicht: x.gewicht, wdh: x.wdh } : best), null);

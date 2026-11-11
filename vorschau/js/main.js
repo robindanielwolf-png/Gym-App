@@ -1,12 +1,16 @@
 import * as db from './db.js';
 import { baueTabs } from './tabs.js';
 import { initTraining, ladeUndZeige } from './training.js';
+import { initVerlauf } from './verlauf.js';
+import { initRekorde } from './rekorde.js';
 import { folgeTastatur, offeneEbenen, zeigeAlert } from './ui.js';
 
 folgeTastatur();
 const app = document.getElementById('app');
 baueTabs(app);
 initTraining(app);
+initVerlauf();
+initRekorde();
 
 navigator.storage?.persist?.().catch(() => {});
 

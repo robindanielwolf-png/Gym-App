@@ -1,7 +1,7 @@
-// Berechnungen ohne Oberfläche und ohne Datenbank: „zuletzt“, Übungen vom letzten Mal,
+// Berechnungen ohne Oberfläche und ohne Datenbank: „zuletzt”, Übungen vom letzten Mal,
 // Vorbelegung des Gewichts, Auto-Ende. Arbeitet auf dem Datenobjekt aus db.leseDaten().
 import { kommaZahl } from './format.js';
-import { gewichtsVorschlag, vorschlag } from './regeln.js';
+import { gewichtsVorschlag, vorschlag, rekorde, einerMax } from './regeln.js';
 
 export const AUTO_ENDE_MS = 3 * 60 * 60 * 1000;
 
@@ -13,6 +13,7 @@ export const nachZeit = (a, b) => zeit(a.erstelltAm) - zeit(b.erstelltAm) || (a.
 export const istCardio = (u) => u.typ === 'cardio';
 export const istNurWdh = (u) => u.geraet === 'kg' && u.modus === 'nurWdh';
 export const istZusatz = (u) => u.geraet === 'kg' && u.modus === 'zusatz';
+export const istZeit = (u) => u.geraet === 'kg' && u.modus === 'zeit';
 
 export function eintraegeVon(daten, trainingId) {
   return [...daten.saetze, ...daten.cardio].filter((e) => e.trainingId === trainingId);
@@ -183,4 +184,75 @@ export function letztesTrainingDerArt(daten, artId, ausserTrainingId = null) {
   return daten.trainings
     .filter((t) => t.artId === artId && t.id !== ausserTrainingId && ids.has(t.id))
     .sort((a, b) => zeit(b.startedAt) - zeit(a.startedAt))[0] || null;
+}
+
+/**
+ * Rekorde einer Übung: lädt die Daten und berechnet beide Rekorde.
+ * Liefert ein Objekt mit art, sowie den jeweiligen Rekord-Feldern (siehe rekorde() in regeln.js).
+ */
+export function geholeRekorde(daten, uebungId) {
+  const uebung = daten.uebungen.find((u) => u.id === uebungId);
+  if (!uebung) return null;
+
+  const eintraege = [...daten.saetze, ...daten.cardio].filter((e) => e.uebungId === uebungId);
+  return rekorde(uebung, eintraege);
+}
+
+/**
+ * Gewichtsverlauf einer Kraft- oder Cardio-Übung: { zeit, wert } chronologisch.
+ * - Kraft (mit Gewicht): wert = Gewicht des Arbeitssatzes
+ * - Cardio: wert = Dauer in Minuten (optional auch Strecke als separater Datenpunkt?)
+ * - Nur Wdh./Zeit: wert = Wdh./Zeit des Arbeitssatzes
+ * Zeit = ISO-String aus erstelltAm; Trainings haben auch startedAt als Referenz.
+ */
+export function gewichtsverlauf(daten, uebungId) {
+  const uebung = daten.uebungen.find((u) => u.id === uebungId);
+  if (!uebung) return [];
+
+  const eintraege = [...daten.saetze, ...daten.cardio]
+    .filter((e) => e.uebungId === uebungId && !e.aufwaermen)
+    .sort(nachZeit);
+
+  if (istCardio(uebung)) {
+    // Cardio: jeder Eintrag ist ein Datenpunkt (Dauer)
+    return eintraege.map((e) => ({
+      zeit: e.erstelltAm,
+      dauer: e.dauerMin,
+      strecke: e.km || null
+    }));
+  }
+
+  if (istNurWdh(uebung)) {
+    // Nur Wdh.: Wdh. als Wert
+    return eintraege.map((e) => ({
+      zeit: e.erstelltAm,
+      wdh: e.wdh
+    }));
+  }
+
+  // Zeit-Modus
+  if (uebung.modus === 'zeit') {
+    return eintraege.map((e) => ({
+      zeit: e.erstelltAm,
+      sekunden: e.wdh // bei Zeit wird die Sekunden-Dauer im wdh-Feld gespeichert
+    }));
+  }
+
+  // Zusatzgewicht und Gewicht: nur der höchste Arbeitssatz pro Training
+  // (um das Diagramm nicht zu überladen)
+  const perTraining = new Map();
+  for (const e of eintraege) {
+    const current = perTraining.get(e.trainingId);
+    if (!current || e.gewicht > current.gewicht || (e.gewicht === current.gewicht && e.wdh > current.wdh)) {
+      perTraining.set(e.trainingId, e);
+    }
+  }
+
+  return [...perTraining.values()]
+    .sort((a, b) => zeit(a.erstelltAm) - zeit(b.erstelltAm))
+    .map((e) => ({
+      zeit: e.erstelltAm,
+      gewicht: e.gewicht,
+      wdh: e.wdh
+    }));
 }

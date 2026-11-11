@@ -91,16 +91,8 @@ export function registerTabActivation(tabId, callback) {
 export function baueTabs(wurzel) {
   const ansichten = {
     training: ansichtTraining(),
-    verlauf: ansichtLeer('Verlauf', {
-      iconName: 'i-calendar',
-      headline: 'Kommt bald',
-      subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
-    }),
-    rekorde: ansichtLeer('Rekorde', {
-      iconName: 'i-trophy',
-      headline: 'Kommt bald',
-      subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
-    })
+    verlauf: h('div', { class: 'view verlauf-view', hidden: true, id: 'verlauf-ansicht' }),
+    rekorde: h('div', { class: 'view', hidden: true, id: 'rekorde-ansicht' })
   };
 
   const knoepfe = {};
