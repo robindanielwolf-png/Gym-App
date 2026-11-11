@@ -1,7 +1,9 @@
 // Statistik-Views für die Trainingsübersicht nach Muskelgruppe/Woche.
-import { h } from './ui.js';
+import * as db from './db.js';
+import { h, leerHinweis } from './ui.js';
 import { saetzeProMuskelgruppe } from './logik.js';
 import { MUSKELN_NACH } from './muskeln.js';
+import { registerTabUpdater } from './tab-events.js';
 
 // Zeitraum-Konfiguration: tageAnzahl für verschiedene Filter
 const ZEITRAEUME = [
@@ -115,13 +117,15 @@ export function baueSatistikView(daten, zeitraumId = 'woche', onZeitraumChange =
     const statusLabel = getStatusLabel(saetze, zeitraum.tage);
     const balkenBreite = (saetze / maxFuerSkala) * 100;
 
+    const balken = h('div', { class: `stat-bar stat-bar-${statusColor}` });
+    balken.style.width = `${balkenBreite}%`;
     return h('div', { class: 'statistik-zeile' },
       h('div', { class: 'stat-label' },
         h('span', { class: 'stat-name', text: kategorie }),
-        h('span', { class: `stat-value stat-${statusColor}`, text: `${Math.round(saetze * 10) / 10}` })),
+        h('span', { class: `stat-value stat-${statusColor}`, text: `${Math.round(saetze * 10) / 10}`.replace('.', ',') })),
       h('div', { class: 'stat-balken' },
-        h('div', { class: `stat-bar stat-bar-${statusColor}`, style: `width: ${balkenBreite}%` }),
-        h('span', { class: 'stat-info', text: `${Math.round(proWoche)} Sätze/Woche` })),
+        balken,
+        h('span', { class: 'stat-info', text: `${String(Math.round(proWoche * 10) / 10).replace('.', ',')} Sätze/Woche` })),
       h('span', { class: `stat-status stat-status-${statusColor}`, text: statusLabel })
     );
   });
@@ -131,11 +135,35 @@ export function baueSatistikView(daten, zeitraumId = 'woche', onZeitraumChange =
     h('p', { text: `Ideal-Bereich: ${IDEAL_MIN}–${IDEAL_MAX} Sätze pro Woche` })
   );
 
+  const inhalt = baelkchen.length
+    ? h('div', { class: 'statistik-inhalt' }, ...baelkchen)
+    : leerHinweis({ iconName: 'i-chart', headline: 'Noch keine Sätze', subhead: 'In diesem Zeitraum gibt es noch keine Kraft-Sätze.' });
+
   return h('div', { class: 'statistik-container' },
-    h('h2', { class: 'statistik-title', text: 'Muskelgruppen-Statistik' }),
+    h('h2', { class: 'statistik-title', text: 'Sätze pro Muskelgruppe' }),
     zeitraumButtons,
-    h('div', { class: 'statistik-inhalt' }, ...baelkchen),
+    inhalt,
     infoBox
   );
+}
+
+/** Füllt die von baueTabs angelegte Ansicht und lädt die Daten beim Öffnen und nach Änderungen. */
+export function initStatistik() {
+  const ansicht = document.getElementById('statistik-ansicht');
+  const inhalt = h('div');
+  ansicht.replaceChildren(h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Statistik' })), inhalt);
+  let zeitraum = 'woche';
+  let daten = null;
+  const zeichne = () => {
+    if (daten) inhalt.replaceChildren(baueSatistikView(daten, zeitraum, (z) => { zeitraum = z; zeichne(); }));
+  };
+  registerTabUpdater('statistik', async () => {
+    try {
+      daten = await db.leseDaten();
+      zeichne();
+    } catch (e) {
+      console.error('Statistik konnte nicht geladen werden:', e);
+    }
+  });
 }
 

@@ -2,6 +2,7 @@ import * as db from './db.js';
 import { baueTabs } from './tabs.js';
 import { initVerlauf } from './verlauf.js';
 import { initRekorde } from './rekorde.js';
+import { initStatistik } from './statistik.js';
 import { initTraining, ladeUndZeige } from './training.js';
 import { folgeTastatur, offeneEbenen, zeigeAlert } from './ui.js';
 import { zeigeSicherungsErinnerung } from './sicherung-sheet.js';
@@ -13,6 +14,7 @@ baueTabs(app);
 // Verlauf und Rekorde füllen ihre (von baueTabs angelegten) Ansichten und laden ihre Daten
 // selbst, sobald der Tab geöffnet wird oder sich Daten ändern.
 initVerlauf();
+initStatistik();
 initRekorde();
 initTraining(app);
 

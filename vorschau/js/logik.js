@@ -2,6 +2,10 @@
 // Vorbelegung des Gewichts, Auto-Ende. Arbeitet auf dem Datenobjekt aus db.leseDaten().
 import { kommaZahl } from './format.js';
 import { gewichtsVorschlag, vorschlag, rekorde, einerMax } from './regeln.js';
+import { STARTLISTE } from './startdaten.js';
+
+// Muskeln kommen aus der Startliste: gespeicherte Übungen aus älteren Versionen haben das Feld nicht.
+const START_MUSKELN = new Map(STARTLISTE.map((u) => [u.id, u.muskeln]));
 
 export const AUTO_ENDE_MS = 3 * 60 * 60 * 1000;
 
@@ -305,10 +309,12 @@ export function saetzeProMuskelgruppe(daten, tageAnzahl = 7, jetzt = Date.now())
 
   for (const satz of recenteSaetze) {
     const uebung = uebungenNach.get(satz.uebungId);
-    if (!uebung || !uebung.muskeln) continue;
+    if (!uebung) continue;
+    const muskeln = START_MUSKELN.get(uebung.id) || uebung.muskeln;
+    if (!muskeln?.length) continue;
 
     // Pro Muskel in dieser Übung
-    for (const muskel of uebung.muskeln) {
+    for (const muskel of muskeln) {
       // Müssen die Muskelkategorie und die Gewichtung kennen
       // muskel.id ist die Muskel-ID, muskel.rolle ist 'haupt' oder 'hilf'
       // Wir müssen die Kategorie nachschlagen, aber wir haben nur die Muskel-ID

@@ -5,6 +5,7 @@ import { oeffneSicherung } from './sicherung-sheet.js';
 const TABS = [
   { id: 'training', label: 'Training', iconName: 'i-dumbbell' },
   { id: 'verlauf', label: 'Verlauf', iconName: 'i-calendar' },
+  { id: 'statistik', label: 'Statistik', iconName: 'i-chart' },
   { id: 'rekorde', label: 'Rekorde', iconName: 'i-trophy' }
 ];
 
@@ -92,6 +93,7 @@ export function baueTabs(wurzel) {
   const ansichten = {
     training: ansichtTraining(),
     verlauf: h('div', { class: 'view verlauf-view', hidden: true, id: 'verlauf-ansicht' }),
+    statistik: h('div', { class: 'view', hidden: true, id: 'statistik-ansicht' }),
     rekorde: h('div', { class: 'view', hidden: true, id: 'rekorde-ansicht' })
   };
 
