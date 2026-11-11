@@ -1,10 +1,12 @@
 import { tageText } from './format.js';
 import { h, icon, kachel, leerHinweis } from './ui.js';
 import { oeffneSicherung } from './sicherung-sheet.js';
+import { baueSatistikView } from './statistik.js';
 
 const TABS = [
   { id: 'training', label: 'Training', iconName: 'i-dumbbell' },
   { id: 'verlauf', label: 'Verlauf', iconName: 'i-calendar' },
+  { id: 'statistik', label: 'Statistik', iconName: 'i-trophy' },
   { id: 'rekorde', label: 'Rekorde', iconName: 'i-trophy' }
 ];
 
@@ -77,6 +79,22 @@ function ansichtLeer(titel, hinweis) {
 }
 
 /**
+ * Statistik-View: Sätze pro Muskelgruppe der letzten 7 Tage.
+ * Der Inhalt wird bei Tab-Aktivierung aktualisiert.
+ */
+function ansichtStatistik() {
+  const statistikContainer = h('div', { class: 'view', id: 'statistik-view' },
+    h('div', { class: 'title-row' },
+      h('h1', { class: 'largetitle', text: 'Statistik' })),
+    h('div', { id: 'statistik-inhalt' }, leerHinweis({
+      iconName: 'i-sync',
+      headline: 'Lädt...',
+      subhead: 'Trainings-Statistik wird berechnet.'
+    })));
+  return statistikContainer;
+}
+
+/**
  * Registriert einen Callback, der aufgerufen wird, wenn ein Tab aktiviert wird.
  * Das ermöglicht es, dass Verlauf/Rekorde sofort den aktuellen Stand zeigen.
  * tabId: 'verlauf' oder 'rekorde'
@@ -88,7 +106,10 @@ export function registerTabActivation(tabId, callback) {
   tabAktivierungsCallbacks.get(tabId).push(callback);
 }
 
-export function baueTabs(wurzel) {
+export function baueTabs(wurzel, datenCallback = null) {
+  // State für Statistik-Zeitraum
+  let aktuellerZeitraum = 'woche';
+
   const ansichten = {
     training: ansichtTraining(),
     verlauf: ansichtLeer('Verlauf', {
@@ -96,12 +117,32 @@ export function baueTabs(wurzel) {
       headline: 'Kommt bald',
       subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
     }),
+    statistik: ansichtStatistik(),
     rekorde: ansichtLeer('Rekorde', {
       iconName: 'i-trophy',
       headline: 'Kommt bald',
       subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
     })
   };
+
+  // Funktion zum Aktualisieren der Statistik-View
+  const aktualisiereStatistik = () => {
+    const daten = datenCallback?.();
+    if (daten) {
+      const inhalt = document.getElementById('statistik-inhalt');
+      if (inhalt) {
+        inhalt.replaceChildren(baueSatistikView(daten, aktuellerZeitraum, (neuZeitraum) => {
+          aktuellerZeitraum = neuZeitraum;
+          aktualisiereStatistik();
+        }));
+      }
+    }
+  };
+
+  // Registriere Statistik-Aktualisierungs-Callback
+  if (datenCallback) {
+    registerTabActivation('statistik', aktualisiereStatistik);
+  }
 
   const knoepfe = {};
   const zeige = (id) => {

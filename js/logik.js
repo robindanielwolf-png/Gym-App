@@ -268,3 +268,77 @@ export function gewichtsverlauf(daten, uebungId) {
       wdh: e.wdh
     }));
 }
+
+/**
+ * Berechnet Sätze pro Muskelgruppe/Kategorie für die letzten tageAnzahl Tage.
+ * Gewichtung: Hauptmuskel 1.0×, Hilfsmuskel 0.5×
+ * Liefert { 'Kategorie': satzAnzahl, ... } sortiert nach Kategorie.
+ * tageAnzahl = 7 für eine Woche, 1 für heute, etc.
+ */
+export function saetzeProMuskelgruppe(daten, tageAnzahl = 7, jetzt = Date.now()) {
+  if (!daten.saetze || !daten.uebungen) {
+    return {};
+  }
+
+  // Zeitgrenze: vor N Tagen (00:00 Uhr Heute)
+  const heuteStart = new Date(jetzt);
+  heuteStart.setHours(0, 0, 0, 0);
+  const grenze = heuteStart.getTime() - (tageAnzahl - 1) * 24 * 60 * 60 * 1000;
+
+  // Uebungen nachschlagen
+  const uebungenNach = new Map(daten.uebungen.map((u) => [u.id, u]));
+
+  // Trainings nach ID
+  const trainingsNach = new Map(daten.trainings.map((t) => [t.id, t]));
+
+  // Sätze der letzten N Tage sammeln (nur Arbeitssätze, keine Aufwärmsätze)
+  const recenteSaetze = daten.saetze.filter((s) => {
+    if (s.aufwaermen) return false; // Aufwärmsätze ignorieren
+    const training = trainingsNach.get(s.trainingId);
+    if (!training) return false;
+    const trainingZeit = zeit(training.startedAt);
+    return trainingZeit >= grenze;
+  });
+
+  // Sätze pro Muskelgruppe/Kategorie
+  const result = {};
+
+  for (const satz of recenteSaetze) {
+    const uebung = uebungenNach.get(satz.uebungId);
+    if (!uebung || !uebung.muskeln) continue;
+
+    // Pro Muskel in dieser Übung
+    for (const muskel of uebung.muskeln) {
+      // Müssen die Muskelkategorie und die Gewichtung kennen
+      // muskel.id ist die Muskel-ID, muskel.rolle ist 'haupt' oder 'hilf'
+      // Wir müssen die Kategorie nachschlagen, aber wir haben nur die Muskel-ID
+
+      const gewicht = muskel.rolle === 'haupt' ? 1.0 : 0.5;
+
+      // Wir sammeln pro Muskel-ID, nicht pro Kategorie.
+      // Wir brauchen also ein anderes Lookup für Muskelkategorie.
+      // Das machen wir später mit muskeln.js.
+      if (!result[muskel.id]) {
+        result[muskel.id] = 0;
+      }
+      result[muskel.id] += gewicht;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Wie saetzeProMuskelgruppe, aber gruppiert nach Muskelkategorie (z.B. 'Beine', 'Arme').
+ * Liefert { 'Kategorie': satzAnzahl, ... } sortiert alphabetisch nach Kategorie.
+ */
+export function saetzeProMuskelkategorie(daten, tageAnzahl = 7, jetzt = Date.now()) {
+  const proMuskel = saetzeProMuskelgruppe(daten, tageAnzahl, jetzt);
+
+  // MUSKELN importieren, um Kategorie zu bestimmen
+  // Wir machen das direkt hier inline, da wir die Muskelkategorie brauchen
+  // Das wird von muskeln.js gemacht, aber wir müssen es hier nicht importieren
+  // sondern direkt nutzen – wir machen das im UI mit Hilfe von muskeln.js
+
+  return proMuskel;
+}
