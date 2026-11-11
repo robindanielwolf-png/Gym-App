@@ -6,6 +6,7 @@ import { registerTabUpdater } from './tab-events.js';
 import { datumKurz, kommaZahl } from './format.js';
 import { istZeit } from './logik.js';
 import { baueTrainingsFigur } from './muskel-figur.js';
+import { oeffneUebungsdetail } from './uebungsdetail.js';
 import { h, icon, oeffneSheet, sheetKopf, griff, einmalig, leerHinweis } from './ui.js';
 
 /**
@@ -253,10 +254,7 @@ export function initVerlauf() {
         // Alle Trainings dieses Tages zeigen (nur das erste für jetzt)
         // TODO: Falls mehrere Trainings an einem Tag, erst Liste zeigen
         if (trainings.length > 0) {
-          oeffneTrainingsDetail(trainings[0], datenGlobal, artNachMap, (uebung) => {
-            // #10 Übungsdetail öffnen (noch nicht implementiert)
-            console.log('Übungsdetail öffnen:', uebung);
-          });
+          oeffneTrainingsDetail(trainings[0], datenGlobal, artNachMap, (uebung) => oeffneUebungsdetail(datenGlobal, uebung));
         }
       });
   }

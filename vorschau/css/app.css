@@ -280,10 +280,10 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .btn-nav:active{opacity:.6}
 .monat-anzeige{flex:1;text-align:center;font-size:17px;line-height:22px;font-weight:600}
 .kalender-container{background:var(--surface);border-radius:var(--r-card);margin:16px 16px 0;overflow:hidden}
-.calendar-header{display:grid;grid-template-columns:repeat(7,1fr);background:var(--bg);gap:.5px}
+.calendar-header{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--bg);gap:.5px}
 .calendar-day-name{padding:8px 0;text-align:center;font-size:13px;line-height:18px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.2px}
-.calendar-days{display:grid;grid-template-columns:repeat(7,1fr);gap:.5px;padding:1px;background:var(--separator)}
-.calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;aspect-ratio:1;background:var(--surface);padding:6px 4px;min-height:80px;position:relative;cursor:pointer}
+.calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.5px;padding:1px;background:var(--separator)}
+.calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-width:0;min-height:56px;background:var(--surface);padding:6px 2px;position:relative;cursor:pointer}
 .calendar-day:active{background:var(--fill)}
 .calendar-day.empty{background:transparent;cursor:default}
 .calendar-day.empty:active{background:transparent}
@@ -367,3 +367,31 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .start-seite{margin-top:8px;font-size:13px;line-height:18px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.3px}
 .start-liste{padding:0 16px}
 .start-liste .list{margin-top:0;background:var(--surface)}
+/* Übungsdetail (Screen 06) */
+.sheet.detail-sheet{min-height:calc(100% - env(safe-area-inset-top) - 24px);background:var(--bg)}
+.chart-karte{background:var(--surface);border-radius:var(--r-card);padding:12px 12px 4px;margin-top:8px}
+.chart-kopf{font-size:13px;line-height:18px;color:var(--text-2);padding:0 4px 8px}
+.seg.chart-seg{margin:0 0 8px}
+.chart-svg{display:block;width:100%;height:auto;touch-action:pan-y;font-family:var(--font)}
+.chart-raster line{stroke:var(--fill);stroke-width:1}
+.chart-achse text{font-size:11px;fill:var(--text-2)}
+.chart-linie{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.chart-punkt{fill:var(--accent)}
+.chart-hilfslinie{stroke:var(--accent);stroke-width:1;stroke-dasharray:3 3}
+.chart-auswahl{fill:#fff;stroke:var(--accent);stroke-width:2.5}
+.chart-label{fill:#fff;stroke:var(--fill)}
+.chart-label-datum{font-size:12px;fill:var(--text-2)}
+.chart-label-wert{font-size:16px;font-weight:600;fill:var(--text)}
+.chart-leer{font-size:15px;line-height:20px;color:var(--text-2);text-align:center;padding:40px 8px}
+.section-h.detail-abschnitt{padding-left:4px;padding-top:20px}
+.rekord-kacheln{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rekord-kachel{background:var(--surface);border-radius:var(--r-card);padding:14px;min-width:0}
+.rk-titel{font-size:13px;line-height:18px;color:var(--text-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rk-plakette{font-size:11px;line-height:16px;font-weight:600;padding:1px 6px;border-radius:6px;background:var(--fill);color:var(--text-2)}
+.rk-plakette.belegt{background:var(--accent-tint);color:var(--accent)}
+.rk-wert{font-size:28px;line-height:34px;font-weight:700;margin-top:4px}
+.rk-wert small{font-size:17px;font-weight:600;color:var(--text-2)}
+.rk-unter{font-size:13px;line-height:18px;color:var(--text-2);margin-top:2px}
+.list.auf-weiss-karte{margin:12px 0 0;background:var(--surface)}
+.detail-pfeil{transition:transform .2s ease-out}
+.detail-pfeil.offen{transform:rotate(90deg)}

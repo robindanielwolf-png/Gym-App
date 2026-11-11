@@ -3,7 +3,7 @@
 // Modul-URLs (?v=) samt CSP-Hash der Import-Map in index.html.
 const VERSION = '0.4.0';
 // Stand innerhalb einer Version: bei jeder Dateiänderung erhöhen, damit der Cache sicher neu lädt.
-const STAND = 6;
+const STAND = 7;
 
 const SCOPE_PFAD = new URL(self.registration.scope).pathname;
 const IST_VORSCHAU = SCOPE_PFAD.endsWith('/vorschau/');
@@ -39,6 +39,7 @@ const DATEIEN = [
   './js/statistik.js',
   './js/muskeln.js',
   './js/muskel-figur.js',
+  './js/uebungsdetail.js',
   './js/muskel-figur-pfade.js',
   './icons/app-icon-180.png',
   './icons/app-icon-512.png'

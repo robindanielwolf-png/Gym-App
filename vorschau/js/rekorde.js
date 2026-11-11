@@ -8,6 +8,7 @@ import { istCardio, istNurWdh, istZusatz } from './logik.js';
 import { rekorde } from './regeln.js';
 import { registerTabUpdater } from './tab-events.js';
 import { h, icon, oeffneSheet, sheetKopf, griff, einmalig } from './ui.js';
+import { oeffneUebungsdetail } from './uebungsdetail.js';
 
 let daten = null;
 let aktuellerFilter = 'alle'; // 'alle' oder artId
@@ -209,7 +210,7 @@ function baueRekordeZeile(uebung, rek) {
   const zeile = h('button', {
     class: 'row',
     type: 'button',
-    onclick: () => oeffneUebungsdetail(uebung)
+    onclick: () => oeffneUebungsdetail(daten, uebung)
   },
     h('div', { class: 'main' },
       h('div', { class: 't', text: uebung.name }),
@@ -278,14 +279,4 @@ function oeffneKoerpergewichtEdit(aktuellesKg) {
           })))
     ]
   });
-}
-
-/**
- * Öffnet das Übungsdetail (#10).
- * Placeholder: wird später implementiert, wenn #10 fertig ist.
- */
-function oeffneUebungsdetail(uebung) {
-  // Placeholder für #10
-  console.log('Übungsdetail öffnen für:', uebung.name);
-  // Später: push zu uebungsdetail-view mit Zurück-Button
 }
