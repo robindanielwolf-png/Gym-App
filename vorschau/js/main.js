@@ -1,21 +1,22 @@
 import * as db from './db.js';
 import { baueTabs } from './tabs.js';
 import { initTraining, ladeUndZeige } from './training.js';
-import { initVerlauf } from './verlauf.js';
-import { initRekorde } from './rekorde.js';
 import { folgeTastatur, offeneEbenen, zeigeAlert } from './ui.js';
+import { zeigeSicherungsErinnerung } from './sicherung-sheet.js';
 
 folgeTastatur();
 const app = document.getElementById('app');
 baueTabs(app);
 initTraining(app);
-initVerlauf();
-initRekorde();
 
 navigator.storage?.persist?.().catch(() => {});
 
 db.initialisiere()
   .then(() => ladeUndZeige({ start: true }))
+  .then(() => {
+    // Zeige die Sicherungs-Erinnerung nach 1-2 Sekunden
+    setTimeout(() => { zeigeSicherungsErinnerung().catch(() => {}); }, 1500);
+  })
   .catch(() => {
     zeigeAlert({
       titel: 'Das hat nicht geklappt',

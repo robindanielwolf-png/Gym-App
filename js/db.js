@@ -28,6 +28,7 @@ const META_ENTWURF_UEBUNG = 'entwurfUebung';
 const META_ENTWURF_SATZ = 'entwurfSatz';
 const META_ANSICHT = 'letzteAnsicht';
 const META_KG_GEFRAGT = 'koerpergewichtGefragt';
+const META_SICHERUNGS_ERINNERUNG = 'sicherungsErinnerung';
 
 export const KOERPERGEWICHT_ID = 'aktuell';
 
@@ -367,5 +368,17 @@ export function leseKoerpergewichtGefragt() {
 export function setzeKoerpergewichtGefragt() {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_KG_GEFRAGT, true);
+  });
+}
+
+/** Liest die Sicherungs-Erinnerungsdaten: { letzterExportDatum, trainingsCountDamals, zeigeErinneringNicht } */
+export function leseSicherungsErinnerung() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_SICHERUNGS_ERINNERUNG));
+}
+
+/** Speichert die Sicherungs-Erinnerungsdaten. */
+export function setzeSicherungsErinnerung(daten) {
+  return mitTransaktion([META], 'readwrite', (t) => {
+    schreibeMeta(t, META_SICHERUNGS_ERINNERUNG, daten);
   });
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-JT2BZPH7/QWPfyTcHWtYKIpeEaUnfCAlHJaLr5ywqmA=' 'sha256-cvlOi16hmrtjc/tKoK8RkKBlvHDuaDZeKyYHjifVMa4='; img-src 'self' blob: data:; object-src 'none'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src 'none'; base-uri 'self'">
 <title>Gym-Tracker</title>
 <meta name="theme-color" content="#F2F2F7">
 <meta name="color-scheme" content="light">
@@ -17,27 +17,30 @@
 <link rel="stylesheet" href="./css/app.css">
 <script type="importmap">{
  "imports": {
-  "./js/db.js": "./js/db.js?v=0.4.0-1",
-  "./js/format.js": "./js/format.js?v=0.4.0-1",
-  "./js/logik.js": "./js/logik.js?v=0.4.0-1",
-  "./js/main.js": "./js/main.js?v=0.4.0-1",
-  "./js/regeln.js": "./js/regeln.js?v=0.4.0-1",
-  "./js/rekorde.js": "./js/rekorde.js?v=0.4.0-1",
-  "./js/satz.js": "./js/satz.js?v=0.4.0-1",
-  "./js/sicherung-sheet.js": "./js/sicherung-sheet.js?v=0.4.0-1",
-  "./js/sicherung.js": "./js/sicherung.js?v=0.4.0-1",
-  "./js/startdaten.js": "./js/startdaten.js?v=0.4.0-1",
-  "./js/tab-events.js": "./js/tab-events.js?v=0.4.0-1",
-  "./js/tabs.js": "./js/tabs.js?v=0.4.0-1",
-  "./js/training.js": "./js/training.js?v=0.4.0-1",
-  "./js/uebungen.js": "./js/uebungen.js?v=0.4.0-1",
-  "./js/ui.js": "./js/ui.js?v=0.4.0-1",
-  "./js/umgebung.js": "./js/umgebung.js?v=0.4.0-1",
-  "./js/verlauf.js": "./js/verlauf.js?v=0.4.0-1",
-  "./js/version.js": "./js/version.js?v=0.4.0-1"
+  "./js/db.js": "./js/db.js?v=0.4.0-2",
+  "./js/format.js": "./js/format.js?v=0.4.0-2",
+  "./js/logik.js": "./js/logik.js?v=0.4.0-2",
+  "./js/main.js": "./js/main.js?v=0.4.0-2",
+  "./js/muskel-karte.js": "./js/muskel-karte.js?v=0.4.0-2",
+  "./js/muskel-karte-test.js": "./js/muskel-karte-test.js?v=0.4.0-2",
+  "./js/muskel-svg-pfade.js": "./js/muskel-svg-pfade.js?v=0.4.0-2",
+  "./js/muskeln.js": "./js/muskeln.js?v=0.4.0-2",
+  "./js/regeln.js": "./js/regeln.js?v=0.4.0-2",
+  "./js/satz.js": "./js/satz.js?v=0.4.0-2",
+  "./js/sicherung-sheet.js": "./js/sicherung-sheet.js?v=0.4.0-2",
+  "./js/sicherung.js": "./js/sicherung.js?v=0.4.0-2",
+  "./js/startdaten.js": "./js/startdaten.js?v=0.4.0-2",
+  "./js/statistik.js": "./js/statistik.js?v=0.4.0-2",
+  "./js/tab-events.js": "./js/tab-events.js?v=0.4.0-2",
+  "./js/tabs.js": "./js/tabs.js?v=0.4.0-2",
+  "./js/training.js": "./js/training.js?v=0.4.0-2",
+  "./js/uebungen.js": "./js/uebungen.js?v=0.4.0-2",
+  "./js/ui.js": "./js/ui.js?v=0.4.0-2",
+  "./js/umgebung.js": "./js/umgebung.js?v=0.4.0-2",
+  "./js/version.js": "./js/version.js?v=0.4.0-2"
  }
 }</script>
-<script type="module" src="./js/main.js?v=0.4.0-1"></script>
+<script type="module" src="./js/main.js?v=0.4.0-2"></script>
 </head>
 <body>
 
