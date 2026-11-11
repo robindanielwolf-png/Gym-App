@@ -14,6 +14,7 @@ export const istCardio = (u) => u.typ === 'cardio';
 export const istNurWdh = (u) => u.geraet === 'kg' && u.modus === 'nurWdh';
 export const istZusatz = (u) => u.geraet === 'kg' && u.modus === 'zusatz';
 
+export const istZeit = (u) => u.geraet === 'kg' && u.modus === 'zeit';
 export function eintraegeVon(daten, trainingId) {
   return [...daten.saetze, ...daten.cardio].filter((e) => e.trainingId === trainingId);
 }
@@ -67,11 +68,19 @@ export function letztesMalIndex(daten, ausserTrainingId = null) {
 
 const kg = (w) => `${kommaZahl(w)} kg`;
 
+const formatZeit = (sekunden) => {
+  if (sekunden < 60) return `${sekunden} Sek.`;
+  const min = Math.floor(sekunden / 60);
+  const sek = sekunden % 60;
+  return `${min}:${String(sek).padStart(2, '0')}`;
+};
+
 /** Footnote auf der Übungskarte und in der Übungsauswahl, null wenn noch nie gemacht. */
 export function zuletztText(uebung, letztesMal) {
   const letzter = letztesMal?.eintraege.at(-1);
   if (!letzter) return null;
   if (istCardio(uebung)) return `zuletzt ${kommaZahl(letzter.dauerMin)} min`;
+  if (istZeit(uebung)) return `zuletzt ${formatZeit(letzter.wdh)}`;
   if (istNurWdh(uebung)) return `zuletzt ${letzter.wdh} Wdh.`;
   if (istZusatz(uebung)) return letzter.gewicht > 0 ? `zuletzt +${kg(letzter.gewicht)}` : 'zuletzt ohne Zusatz';
   return `zuletzt ${kg(letzter.gewicht)}`;
@@ -104,6 +113,7 @@ export function karteVorschlagText(uebung, letztesMal) {
     case 'gewicht': return `Vorschlag ${kg(v.wert)}`;
     case 'zusatz': return v.wert > 0 ? `Vorschlag +${kg(v.wert)}` : 'Vorschlag ohne Zusatz';
     case 'wdh': return `Ziel ${v.wert} Wdh.`;
+    case 'zeit': return `zuletzt ${formatZeit(v.wert)}`;
     case 'cardio': return `zuletzt ${kommaZahl(v.wert)} min`;
     default: return 'erstes Mal';
   }
@@ -114,7 +124,7 @@ export function karteVorschlagText(uebung, letztesMal) {
  * sonst (erstes Mal) der letzte Satz heute; sonst leer (null).
  */
 export function vorbelegtesGewicht(uebung, heute, letztesMal) {
-  if (istCardio(uebung) || istNurWdh(uebung)) return null;
+  if (istCardio(uebung) || istNurWdh(uebung) || istZeit(uebung)) return null;
   const mitGewicht = heute.filter((s) => s.gewicht !== null);
   const arbeitHeute = mitGewicht.filter((s) => !s.aufwaermen).at(-1);
   if (arbeitHeute) return arbeitHeute.gewicht;
@@ -127,6 +137,7 @@ export function vorbelegtesGewicht(uebung, heute, letztesMal) {
 export function chipText(uebung, e) {
   if (istCardio(uebung)) return `${kommaZahl(e.dauerMin)} min${e.km !== null ? ` · ${kommaZahl(e.km)} km` : ''}`;
   const a = e.aufwaermen ? ' · A' : '';
+  if (istZeit(uebung)) return `${formatZeit(e.wdh)}${a}`;
   if (istNurWdh(uebung) || e.gewicht === null) return `${e.wdh} Wdh.${a}`;
   return `${istZusatz(uebung) ? '+' : ''}${kommaZahl(e.gewicht)} × ${e.wdh}${a}`;
 }
@@ -134,6 +145,7 @@ export function chipText(uebung, e) {
 /** Beschreibung in der Rückfrage „Satz löschen?“. */
 export function satzBeschreibung(uebung, e) {
   if (istCardio(uebung)) return `(${chipText(uebung, e)})`;
+  if (istZeit(uebung)) return `(${chipText(uebung, e)}${e.aufwaermen ? ', Aufwärmen' : ''})`;
   const basis = istNurWdh(uebung) || e.gewicht === null
     ? `${e.wdh} Wdh.`
     : `${istZusatz(uebung) ? '+' : ''}${kg(e.gewicht)} × ${e.wdh}`;
@@ -161,6 +173,7 @@ export function vorschauText(uebung, eintraege) {
   }
   const arbeit = eintraege.filter((s) => !s.aufwaermen);
   if (arbeit.length === 0) return null;
+  if (istZeit(uebung)) return `${arbeit.map((s) => formatZeit(s.wdh)).join(' / ')}`;
   if (istNurWdh(uebung) || arbeit.every((s) => s.gewicht === null)) return `${arbeit.map((s) => s.wdh).join(' / ')} Wdh.`;
   const gruppen = [];
   for (const s of arbeit) {
