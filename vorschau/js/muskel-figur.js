@@ -37,9 +37,13 @@ function seite(figur, punkte, zeitraum, label) {
     for (const p of muskeln.querySelectorAll(`[data-m="${id}"]`)) auswahl.append(svg('path', { d: p.getAttribute('d'), class: 'figur-rand' }));
     const wert = punkte[id] || 0;
     blase.textContent = `${MUSKELN_NACH.get(id).label} · ${wert > 0 ? `${zahl(wert)} ${wert === 1 ? 'Satz' : 'Sätze'}` : 'nicht trainiert'}`;
+    // Label mittig über dem Finger, aber mindestens 16 px vom Bildschirmrand (Design A4).
     const r = rahmen.getBoundingClientRect();
     blase.hidden = false;
-    blase.style.left = `${Math.min(Math.max(ev.clientX - r.left, 60), r.width - 60)}px`;
+    const halb = blase.offsetWidth / 2;
+    const bildschirm = document.documentElement.clientWidth;
+    const mitte = Math.min(Math.max(ev.clientX, halb + 16), bildschirm - halb - 16);
+    blase.style.left = `${mitte - r.left}px`;
     blase.style.top = `${Math.max(ev.clientY - r.top - 44, 0)}px`;
   };
   bild.addEventListener('click', wahl);
@@ -67,10 +71,16 @@ function baueMuskelFigur(punkte, zeitraum) {
 function muskelListe(punkte, zeitraum) {
   const zeilen = MUSKELN.filter((m) => punkte[m.id] > 0).sort((a, b) => punkte[b.id] - punkte[a.id]);
   if (zeilen.length === 0) return h('p', { class: 'foot-links', text: 'Noch keine Kraft-Sätze in diesem Zeitraum.' });
+  const max = Math.max(...zeilen.map((m) => punkte[m.id]));
+  const balken = (m) => {
+    const innen = h('div', { class: `s${muskelStufe(punkte[m.id], zeitraum)}` });
+    innen.style.width = `${(punkte[m.id] / max) * 100}%`;
+    return h('div', { class: 'muskel-balken' }, innen);
+  };
   return h('div', { class: 'list auf-weiss kein-rand oben-12' }, zeilen.map((m) =>
     h('div', { class: 'row muskel-zeile' },
       h('span', { class: `figur-kaestchen s${muskelStufe(punkte[m.id], zeitraum)}` }),
-      h('div', { class: 'main t', text: m.label }),
+      h('div', { class: 'main' }, h('div', { class: 't', text: m.label }), balken(m)),
       h('div', { class: 'val', text: `${zahl(punkte[m.id])} ${punkte[m.id] === 1 ? 'Satz' : 'Sätze'}` }))));
 }
 

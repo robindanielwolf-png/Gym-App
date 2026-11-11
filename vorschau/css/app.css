@@ -276,7 +276,7 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .verlauf-kopf{display:flex;flex-direction:column;padding:4px 16px 8px}
 .verlauf-kopf .largetitle{padding:0}
 .monat-nav{display:flex;align-items:center;justify-content:space-between;margin-top:12px;height:40px}
-.btn-nav{width:40px;height:40px;display:grid;place-items:center;color:var(--text);font-size:18px;font-weight:300;padding:0}
+.btn-nav{width:44px;height:44px;display:grid;place-items:center;color:var(--text);font-size:18px;font-weight:300;padding:0}
 .btn-nav:active{opacity:.6}
 .monat-anzeige{flex:1;text-align:center;font-size:17px;line-height:22px;font-weight:600}
 .kalender-container{background:var(--surface);border-radius:var(--r-card);margin:16px 16px 0;overflow:hidden}
@@ -288,9 +288,9 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .calendar-day.empty{background:transparent;cursor:default}
 .calendar-day.empty:active{background:transparent}
 .day-number{font-size:15px;line-height:20px;font-weight:600;color:var(--text);margin-bottom:4px}
-.day-icons{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
-.tag-kachel{width:28px;height:22px;border-radius:7px;background:var(--accent-tint);color:var(--accent);display:grid;place-items:center;flex:none}
-.day-icon{width:16px;height:16px;flex:none}
+.day-icons{display:flex;flex-direction:column;align-items:center;gap:3px}
+.tag-kachel{width:30px;height:24px;border-radius:7px;background:var(--accent-tint);color:var(--accent);display:grid;place-items:center;flex:none}
+.day-icon{width:18px;height:18px;flex:none}
 
 /* Trainingstag-Modal (Screen 08) */
 .sheet.verlauf-sheet{padding-top:8px}
@@ -302,7 +302,7 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .art-name{font-size:17px;line-height:22px;font-weight:600;color:var(--text)}
 .training-count{font-size:13px;line-height:18px;color:var(--text-2);margin-top:2px}
 .verlauf-uebung-liste{display:flex;flex-direction:column}
-.verlauf-uebung-eintrag{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 0 4px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.verlauf-uebung-eintrag{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;padding:12px 0 6px;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .verlauf-uebung + .verlauf-uebung{border-top:.5px solid var(--separator)}
 .verlauf-saetze{margin:4px 0 12px}
 .verlauf-training + .verlauf-training{margin-top:24px}
@@ -321,31 +321,6 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .filter-chips .chip.on{background:var(--accent);color:#fff;font-weight:600}
 .filter-chips .chip:active{opacity:.8}
 
-/* Statistik-View: Sätze pro Muskelgruppe */
-.statistik-container{padding:16px}
-.statistik-title{font-size:17px;line-height:22px;font-weight:600;margin-bottom:16px}
-.statistik-filter{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
-.zeitraum-btn{padding:8px 12px;border:1px solid var(--separator);border-radius:var(--r-btn);background:var(--surface);cursor:pointer;white-space:nowrap;font-size:15px;line-height:20px;color:var(--text)}
-.zeitraum-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.statistik-inhalt{display:flex;flex-direction:column;gap:16px}
-.statistik-zeile{display:flex;flex-direction:column;gap:8px}
-.stat-label{display:flex;justify-content:space-between;align-items:center;font-size:15px;line-height:20px}
-.stat-name{font-weight:500}
-.stat-value{font-weight:600;font-size:17px;line-height:22px}
-.stat-value.stat-gruen{color:var(--success)}
-.stat-value.stat-orange{color:#FF9500}
-.stat-value.stat-rot{color:var(--danger)}
-.stat-balken{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:var(--text-2)}
-.stat-bar{height:8px;border-radius:4px;min-width:4px}
-.stat-bar-gruen{background:var(--success)}
-.stat-bar-orange{background:#FF9500}
-.stat-bar-rot{background:var(--danger)}
-.stat-status{font-size:13px;line-height:18px}
-.stat-status-gruen{color:var(--success)}
-.stat-status-orange{color:#FF9500}
-.stat-status-rot{color:var(--danger)}
-.statistik-info{margin-top:16px;padding:12px;background:var(--fill);border-radius:var(--r-card);font-size:15px;line-height:20px;color:var(--text-2)}
-.statistik-info p{margin:0}
 
 /* Muskelfigur (dunkle Variante, Design 11.11.2026) */
 .figur-paar{display:flex;justify-content:center;gap:12px}
@@ -393,11 +368,11 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .chart-label-datum{font-size:12px;fill:var(--text-2)}
 .chart-label-wert{font-size:16px;font-weight:600;fill:var(--text)}
 .chart-leer{font-size:15px;line-height:20px;color:var(--text-2);text-align:center;padding:40px 8px}
-.section-h.detail-abschnitt{padding-left:4px;padding-top:20px}
+.section-h.detail-abschnitt{padding:24px 16px 8px}
 .rekord-kacheln{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .rekord-kachel{background:var(--surface);border-radius:var(--r-card);padding:14px;min-width:0}
 .rk-titel{font-size:13px;line-height:18px;color:var(--text-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.rk-plakette{font-size:11px;line-height:16px;font-weight:600;padding:1px 6px;border-radius:6px;background:var(--fill);color:var(--text-2)}
+.rk-plakette{font-size:13px;line-height:18px;font-weight:600;padding:1px 6px;border-radius:6px;background:var(--fill);color:var(--text-2)}
 .rk-plakette.belegt{background:var(--accent-tint);color:var(--accent)}
 .rk-wert{font-size:28px;line-height:34px;font-weight:700;margin-top:4px}
 .rk-wert small{font-size:17px;font-weight:600;color:var(--text-2)}
@@ -409,3 +384,22 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .glass.punkt::after{content:"";position:absolute;top:5px;right:5px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #fff}
 .muskel-wahl{max-width:55%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row:disabled{opacity:.45}
+/* Statistik (Design-Prüfung 0.4.0-8: Palette, Segment, keine Ampelfarben) */
+.statistik-container{padding:12px 16px 16px}
+.seg.statistik-seg{margin:0 0 16px}
+.seg.statistik-seg button{padding:11px 0}
+.statistik-inhalt{display:flex;flex-direction:column;gap:16px;background:var(--surface);border-radius:var(--r-card);padding:16px}
+.statistik-zeile{display:flex;flex-direction:column;gap:6px}
+.stat-label{display:flex;justify-content:space-between;align-items:baseline;font-size:17px;line-height:22px;color:var(--text)}
+.stat-value{font-weight:600}
+.stat-balken{height:8px;border-radius:4px;background:var(--fill);overflow:hidden}
+.stat-bar{height:8px;border-radius:4px;min-width:4px}
+.stat-bar.s1{background:#9CC9FF}.stat-bar.s2{background:#4DA3FF}.stat-bar.s3{background:#007AFF}
+.stat-status{font-size:13px;line-height:18px;color:var(--text-2)}
+.statistik-info{margin-top:16px;padding:12px 16px;background:var(--fill);border-radius:var(--r-card);font-size:13px;line-height:18px;color:var(--text-2)}
+.statistik-info p{margin:0}
+.muskel-zeile{min-height:56px}
+.muskel-zeile .main{display:flex;flex-direction:column;gap:6px}
+.muskel-balken{height:6px;border-radius:3px;background:var(--fill);overflow:hidden}
+.muskel-balken > div{height:6px;border-radius:3px}
+.muskel-balken > .s1{background:#9CC9FF}.muskel-balken > .s2{background:#4DA3FF}.muskel-balken > .s3{background:#007AFF}

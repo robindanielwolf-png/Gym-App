@@ -8,7 +8,7 @@ import { h, oeffneSheet, sheetKopf, griff, icon } from './ui.js';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const ZEITRAEUME = [{ id: 3, label: '3 Mon.' }, { id: 6, label: '6 Mon.' }, { id: 0, label: 'Alles' }];
 const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-const B = 345, H = 230, L = 34, R = 10, O = 14, U = 34;
+const H = 230, L = 34, R = 10, O = 14, U = 34;
 
 const zeit = (iso) => (iso ? Date.parse(iso) : 0);
 
@@ -59,6 +59,8 @@ function achse(min, max) {
 }
 
 function diagramm(punkte, art) {
+  // 1 Einheit = 1 px: Breite = Bildschirm − Sheet- und Karten-Innenabstand (Design B1).
+  const B = Math.max(280, document.documentElement.clientWidth - 56);
   const bild = svg('svg', { viewBox: `0 0 ${B} ${H}`, class: 'chart-svg', role: 'img', 'aria-label': art.titel });
   const t0 = zeit(punkte[0].training.startedAt);
   const t1 = zeit(punkte.at(-1).training.startedAt);
