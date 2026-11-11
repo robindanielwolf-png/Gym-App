@@ -96,6 +96,7 @@ export function letztesMalText(uebung, letztesMal) {
   }
   const wdh = e.map((s) => s.wdh).join(' / ');
   if (istNurWdh(uebung)) return `Letztes Mal ${wdh} Wdh.`;
+  if (istZeit(uebung)) return `Letztes Mal ${e.map((s) => formatZeit(s.wdh)).join(' / ')}`;
   const gewichte = new Set(e.map((s) => s.gewicht));
   if (gewichte.size === 1) {
     const w = e[0].gewicht;

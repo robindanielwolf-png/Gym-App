@@ -181,7 +181,7 @@ function baueRekordeZeile(uebung, rek) {
       texte.push('–');
     }
   } else if (rek.art === 'zeit') {
-    texte.push(rek.laengsteZeit !== null ? `${rek.laengsteZeit} s` : '–');
+    texte.push(rek.laengsteZeit !== null ? `Längste Zeit ${rek.laengsteZeit} s` : '–');
   } else if (rek.art === 'zusatz') {
     // Körpergewicht mit Zusatz: zwei Rekorde
     if (rek.schwerstesZusatz) {
