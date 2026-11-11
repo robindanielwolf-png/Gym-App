@@ -10,7 +10,8 @@ const TABS = [
 
 const artenListe = h('div', { class: 'list', id: 'arten-liste' });
 const fortsetzen = h('div', { class: 'list resume', id: 'fortsetzen', hidden: true });
-const artenTitel = h('div', { class: 'section-h oben-8', text: 'Trainingsart wählen' });
+const naechsteKarte = h('div', { class: 'next', id: 'als-naechstes', hidden: true });
+const artenTitel = h('div', { class: 'section-h oben-16', text: 'Trainingsart wählen' });
 
 function ansichtTraining() {
   return h('div', { class: 'view' },
@@ -19,18 +20,37 @@ function ansichtTraining() {
       h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
         icon('i-sync', 's24'))),
     fortsetzen,
+    naechsteKarte,
     artenTitel,
     artenListe,
     h('div', { class: 'abstand-16' }));
 }
 
 /**
- * Screen 01/01c: alle Arten mit „zuletzt“ bzw. „läuft“. Zeile antippen öffnet die Vorschau.
+ * Screen 01/01c/01d: Karte „Als Nächstes dran“ (nur ohne laufendes Training und mit Vorschlag),
+ * alle Arten mit „zuletzt“ bzw. „läuft“. Zeile antippen öffnet die Vorschau.
  * laufend: null oder { art, nebentext, beiFortsetzen } für die Zeile „<Art> läuft“.
+ * naechste: null oder { art, zuletzt, beiTipp } für die Karte.
  */
-export function setzeArten(arten, zuletzt, beiTipp, laufend = null) {
+export function setzeArten(arten, zuletzt, beiTipp, laufend = null, naechste = null) {
   fortsetzen.hidden = !laufend;
-  artenTitel.classList.toggle('oben-8', !laufend);
+  naechsteKarte.hidden = !naechste;
+  artenTitel.textContent = naechste ? 'Oder Trainingsart wählen' : 'Trainingsart wählen';
+  artenTitel.classList.toggle('oben-16', !laufend && !naechste);
+  if (naechste) {
+    const tage = tageText(naechste.zuletzt);
+    naechsteKarte.onclick = naechste.beiTipp;
+    naechsteKarte.replaceChildren(
+      h('div', { class: 'k', text: 'Als Nächstes dran' }),
+      h('div', { class: 'h' },
+        h('div', { class: 'ico' }, icon(naechste.art.icon)),
+        h('div', { class: 'next-text' },
+          h('b', { text: naechste.art.name }),
+          h('span', { text: `zuletzt ${tage}` }))),
+      h('button', { class: 'btn primary', type: 'button', text: 'Training ansehen' }));
+  } else {
+    naechsteKarte.replaceChildren();
+  }
   if (laufend) {
     fortsetzen.replaceChildren(h('button', { class: 'row', type: 'button', onclick: laufend.beiFortsetzen },
       kachel(laufend.art.icon),
@@ -58,13 +78,13 @@ export function baueTabs(wurzel) {
     training: ansichtTraining(),
     verlauf: ansichtLeer('Verlauf', {
       iconName: 'i-calendar',
-      headline: 'Noch keine Trainings',
-      subhead: 'Nach deinem ersten Training siehst du es hier im Kalender.'
+      headline: 'Kommt bald',
+      subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
     }),
     rekorde: ansichtLeer('Rekorde', {
       iconName: 'i-trophy',
-      headline: 'Noch keine Rekorde',
-      subhead: 'Sobald du Sätze eingetragen hast, stehen deine Rekorde hier.'
+      headline: 'Kommt bald',
+      subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
     })
   };
 

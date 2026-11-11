@@ -107,15 +107,17 @@ function wischen(griff, ziel, richtung, beiWeg) {
  * Sheet von unten. `baue(schliessen)` liefert den Inhalt.
  * Griff und Kopfzeile ziehen das Sheet nach unten weg.
  */
-export function oeffneSheet({ klasse = '', baue, beiZu }) {
+export function oeffneSheet({ klasse = '', baue, beiZu, zuruecktreten = false, fokusBleibt = false }) {
   const ebene = h('div', { class: 'ebene' });
+  const darunter = zuruecktreten ? stapel.at(-1) : null;
   let offen = true;
 
   const schliessen = () => {
     if (!offen) return;
     offen = false;
-    document.activeElement?.blur?.();
+    if (!fokusBleibt) document.activeElement?.blur?.();
     sheet.style.transform = '';
+    darunter?.classList.remove('zurueck');
     entferneEbene(ebene);
     beiZu?.();
   };
@@ -125,6 +127,7 @@ export function oeffneSheet({ klasse = '', baue, beiZu }) {
   sheet.append(...[baue(schliessen)].flat().filter(Boolean));
   ebene.append(dim, sheet);
   ebene.zu = schliessen;
+  darunter?.classList.add('zurueck');
   neueEbene(ebene);
 
   sheet.querySelectorAll('.grabber, .sheet-head, .sheet-nav').forEach((g) => wischen(g, sheet, 1, schliessen));
@@ -186,12 +189,16 @@ export function zeigeAlert({ titel, text, knoepfe }) {
 
 let aktuellerHinweis = null;
 
-/** Hinweis oben: nach ca. 4 s weg, nach oben wegwischbar, ohne Ton und Vibration. */
-export function zeigeHinweis({ titel, text }) {
+/**
+ * Hinweis oben über allem: nach ca. 4 s weg, nach oben wegwischbar, Antippen schließt ihn;
+ * ohne Ton und Vibration. Ein neuer Hinweis ersetzt den alten (nie zwei übereinander).
+ */
+export function zeigeHinweis({ titel, text, iconName = 'i-check', einzeilig = false }) {
   aktuellerHinweis?.();
-  const el = h('div', { class: 'banner', role: 'status' },
-    h('div', { class: 'ico' }, icon('i-check')),
+  const el = h('div', { class: `banner ${einzeilig ? 'einzeilig' : ''}`.trim(), role: 'status' },
+    h('div', { class: 'ico' }, icon(iconName)),
     h('div', { class: 'banner-text' }, h('b', { text: titel }), h('span', { text })));
+  el.addEventListener('click', () => weg());
 
   let timer;
   const weg = () => {
@@ -221,4 +228,103 @@ export function folgeTastatur() {
   vv.addEventListener('resize', aktualisiere);
   vv.addEventListener('scroll', aktualisiere);
   aktualisiere();
+}
+
+const RAND_PX = 20;
+const reduziert = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * Zurück per Wischen vom linken Rand (Screen 14): Start nur in den linken 20 px, erst ab
+ * |dx| > |dy| und dx > 10 px. Abschluss ab 35 % Breite oder > 0,5 px/ms (250 ms), sonst
+ * zurückfedern (200 ms). Gesperrt bei offenem Sheet/Alert und offener Tastatur.
+ * darunter(): Elemente, die unter der Seite hervorschauen (Parallaxe ab −30 %).
+ */
+export function randWischen(seite, { darunter, beiZurueck }) {
+  const schatten = h('div', { class: 'wisch-dim', hidden: true });
+  document.getElementById('app').append(schatten);
+  let zug = null;
+
+  const gesperrt = () => stapel.length > 0
+    || document.activeElement?.matches?.('input, textarea')
+    || parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tastatur')) > 0;
+
+  const setze = (dx, dauer = 0, ease = 'ease-out') => {
+    const breite = seite.offsetWidth || window.innerWidth;
+    const anteil = Math.min(1, Math.max(0, dx / breite));
+    const uebergang = dauer ? `${dauer}ms ${ease}` : 'none';
+    if (reduziert()) {
+      seite.style.transition = dauer ? `opacity ${uebergang}` : 'none';
+      seite.style.transform = 'none';
+      seite.style.opacity = String(1 - anteil);
+      return;
+    }
+    seite.style.transition = dauer ? `transform ${uebergang}` : 'none';
+    seite.style.transform = `translateX(${dx}px)`;
+    for (const el of zug.unten) {
+      el.style.transition = dauer ? `transform ${uebergang}` : 'none';
+      el.style.transform = `translateX(${(-30 * (1 - anteil)).toFixed(2)}%)`;
+    }
+    schatten.style.transition = dauer ? `opacity ${uebergang}` : 'none';
+    schatten.style.opacity = String(1 - anteil);
+  };
+
+  const aufraeumen = () => {
+    for (const el of [seite, ...(zug?.unten || [])]) {
+      el.style.transition = '';
+      el.style.transform = '';
+      el.style.opacity = '';
+    }
+    seite.classList.remove('wischt');
+    schatten.hidden = true;
+    zug = null;
+  };
+
+  seite.addEventListener('pointerdown', (e) => {
+    if (zug?.aktiv || !e.isPrimary || e.clientX > RAND_PX || seite.hidden || !seite.classList.contains('offen') || gesperrt()) return;
+    zug = { id: e.pointerId, x: e.clientX, y: e.clientY, aktiv: false, unten: [], punkte: [{ x: e.clientX, t: e.timeStamp }] };
+  }, true);
+
+  seite.addEventListener('pointermove', (e) => {
+    if (!zug || e.pointerId !== zug.id || zug.fertig) return;
+    const dx = e.clientX - zug.x;
+    const dy = e.clientY - zug.y;
+    if (!zug.aktiv) {
+      if (Math.abs(dx) <= 10 && Math.abs(dy) <= 10) return;
+      if (!(dx > 10 && Math.abs(dx) > Math.abs(dy))) { zug = null; return; }
+      zug.aktiv = true;
+      zug.unten = reduziert() ? [] : darunter();
+      try { seite.setPointerCapture(e.pointerId); } catch { /* bereits beendet */ }
+      seite.classList.add('wischt');
+      schatten.hidden = reduziert();
+    }
+    e.preventDefault();
+    zug.punkte.push({ x: e.clientX, t: e.timeStamp });
+    if (zug.punkte.length > 5) zug.punkte.shift();
+    setze(Math.max(0, dx));
+  }, true);
+
+  const ende = (e) => {
+    if (!zug || e.pointerId !== zug.id || zug.fertig) return;
+    if (!zug.aktiv) { zug = null; return; }
+    zug.fertig = true;
+    const dx = Math.max(0, e.clientX - zug.x);
+    const p = zug.punkte;
+    const dt = p.length > 1 ? p.at(-1).t - p[0].t : 0;
+    const tempo = dt > 0 ? (p.at(-1).x - p[0].x) / dt : 0;
+    const breite = seite.offsetWidth || window.innerWidth;
+    // Der folgende Klick darf nichts auslösen.
+    const schlucke = (k) => { k.stopPropagation(); k.preventDefault(); };
+    window.addEventListener('click', schlucke, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', schlucke, { capture: true }), 400);
+    if (e.type !== 'pointercancel' && (dx > breite * 0.35 || tempo > 0.5)) {
+      const dauer = reduziert() ? 200 : 250;
+      setze(breite, dauer);
+      setTimeout(() => { aufraeumen(); beiZurueck(); }, dauer);
+    } else {
+      setze(0, 200);
+      setTimeout(aufraeumen, 200);
+    }
+  };
+  seite.addEventListener('pointerup', ende, true);
+  seite.addEventListener('pointercancel', ende, true);
 }

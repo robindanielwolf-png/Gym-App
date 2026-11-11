@@ -4,13 +4,16 @@
 import * as db from './db.js';
 import { datumKurz, tageText, uhrzeit } from './format.js';
 import {
-  chipText, eintraegeVon, faelligesEnde, letzteUebungen, letztesMalIndex, letztesTrainingDerArt, nachZeit,
-  vorschauText, zuletztProArt, zuletztText
+  chipText, eintraegeVon, faelligesEnde, karteVorschlagText, letzteUebungen, letztesMalIndex, letztesTrainingDerArt,
+  nachZeit, vorschauText, zuletztProArt
 } from './logik.js';
+import { alsNaechstesDran, neueRekorde, rekordHinweis } from './regeln.js';
 import { oeffneSatz } from './satz.js';
 import { setzeArten } from './tabs.js';
 import { FEHLER_F2, oeffneHinzufuegen } from './uebungen.js';
-import { einmalig, griff, h, icon, kachel, leerHinweis, oeffneSheet, schliesseAlles, sheetKopf, zeigeAlert } from './ui.js';
+import {
+  einmalig, griff, h, icon, kachel, leerHinweis, oeffneSheet, randWischen, schliesseAlles, sheetKopf, zeigeAlert, zeigeHinweis
+} from './ui.js';
 
 const PRUEF_INTERVALL_MS = 60 * 1000;
 const UEBERGANG_MS = 320;
@@ -25,6 +28,7 @@ let daten = null;
 let laufend = null; // laufendes Training oder null
 let lauf = null; // nur wenn 02 offen: { training, arten, uebungen: Map, letztesMal: Map }
 let pruefTimer = null;
+let kgGefragt = false; // automatische Abfrage des Körpergewichts schon gezeigt
 
 export function initTraining(app) {
   trainingInhalt = h('div', { class: 'training-scroll' });
@@ -35,6 +39,13 @@ export function initTraining(app) {
   vorschauFuss = h('div', { class: 'bottom-bar' });
   vorschauAnsicht = h('div', { class: 'push-ansicht vorschau-ansicht', hidden: true }, vorschauInhalt, vorschauFuss);
   app.append(vorschauAnsicht, trainingAnsicht);
+  // Zurück per Wischen vom linken Rand: gleiches Ziel wie „‹ Training“.
+  const darunter = () => [...app.children].filter((el) => !el.classList.contains('push-ansicht') && !el.hidden);
+  randWischen(vorschauAnsicht, { darunter, beiZurueck: () => zurStartseite({ sofort: true }) });
+  randWischen(trainingAnsicht, {
+    darunter: () => [...darunter(), ...(vorschauAnsicht.hidden ? [] : [vorschauAnsicht])],
+    beiZurueck: () => zurStartseite({ sofort: true })
+  });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pruefeAutoEnde(); });
 }
 
@@ -92,6 +103,7 @@ export async function ladeUndZeige({ start = false, ziel = null } = {}) {
     }
     if (geaendert) daten = await db.leseDaten();
     if (start) [entwurf, letzteAnsicht] = await Promise.all([db.leseEntwurfSatz(), db.leseLetzteAnsicht()]);
+    kgGefragt = await db.leseKoerpergewichtGefragt();
   } catch {
     zeigeAlert(FEHLER_F2);
     return;
@@ -138,7 +150,10 @@ function zeichneStart() {
     nebentext: `seit ${uhrzeit(laufend.startedAt)}${anzahl ? ` · ${anzahl} ${anzahl === 1 ? 'Satz' : 'Sätze'}` : ''}`,
     beiFortsetzen: zumTraining
   };
-  setzeArten(sortierteArten(), zuletztProArt(daten), artAntippen, lauft || null);
+  const zuletzt = zuletztProArt(daten);
+  const naechste = laufend ? null : alsNaechstesDran(sortierteArten(), zuletzt);
+  setzeArten(sortierteArten(), zuletzt, artAntippen, lauft || null,
+    naechste && { ...naechste, beiTipp: () => oeffneVorschau(naechste.art) });
 }
 
 function artAntippen(art) {
@@ -150,15 +165,15 @@ function zumTraining() {
   oeffneTraining();
 }
 
-function zurStartseite() {
+function zurStartseite({ sofort = false } = {}) {
   lauf = null;
   merkeAnsicht('start');
   zeichneStart();
-  zeigeEbene(trainingAnsicht, false);
-  zeigeEbene(vorschauAnsicht, false);
+  zeigeEbene(trainingAnsicht, false, { sofort });
+  zeigeEbene(vorschauAnsicht, false, { sofort });
 }
 
-const zurueckKnopf = (aktion) => h('button', { class: 'link zurueck', type: 'button', onclick: aktion },
+const zurueckKnopf = (aktion) => h('button', { class: 'link zurueck', type: 'button', onclick: () => aktion() },
   icon('i-back', 's24'), 'Training');
 
 // ---------- Trainingsvorschau (01a/01b) ----------
@@ -277,8 +292,35 @@ function kontextFuer(uebung) {
     },
     merke(entwurf) {
       db.setzeEntwurfSatz(entwurf && { ...entwurf, trainingId: lauf.training.id }).catch(() => {});
+    },
+    /** Rekord-Hinweis nach einem neuen Arbeitssatz; nicht beim ersten Mal der Übung. */
+    pruefeRekord(store, eintrag) {
+      if (eintrag.aufwaermen || !lauf?.letztesMal.get(uebung.id)) return;
+      const vorher = daten[store].filter((e) => e.uebungId === uebung.id && e.id !== eintrag.id);
+      const hinweis = rekordHinweis(uebung, neueRekorde(uebung, vorher, eintrag));
+      if (hinweis) zeigeHinweis({ ...hinweis, iconName: 'i-trophy', einzeilig: true });
+    },
+    koerpergewicht: aktuellesKoerpergewicht,
+    setzeKoerpergewicht(kg) {
+      const alt = daten.koerpergewicht;
+      daten.koerpergewicht = [{ id: db.KOERPERGEWICHT_ID, kg }];
+      kgGefragt = true;
+      return db.speichereKoerpergewicht(kg).catch(() => {
+        daten.koerpergewicht = alt;
+        zeigeAlert(FEHLER_F2);
+      });
+    },
+    kgGefragt: () => kgGefragt,
+    markiereKgGefragt() {
+      kgGefragt = true;
+      db.setzeKoerpergewichtGefragt().catch(() => {});
     }
   };
+}
+
+function aktuellesKoerpergewicht() {
+  const e = (daten.koerpergewicht || []).find((k) => k.id === db.KOERPERGEWICHT_ID) || (daten.koerpergewicht || []).at(-1);
+  return typeof e?.kg === 'number' ? e.kg : null;
 }
 
 function oeffneSatzFuer(uebung, bearbeite = null, entwurf = null) {
@@ -323,9 +365,9 @@ function hinzufuegen() {
 }
 
 function karte(uebung) {
-  const zuletzt = zuletztText(uebung, lauf.letztesMal.get(uebung.id));
+  const wert = karteVorschlagText(uebung, lauf.letztesMal.get(uebung.id));
   return h('div', { class: 'ex', 'data-uebung': uebung.id },
-    h('div', { class: 'top' }, h('b', { text: uebung.name }), zuletzt && h('small', { text: zuletzt })),
+    h('div', { class: 'top' }, h('b', { text: uebung.name }), h('small', { text: wert })),
     h('div', { class: 'sets' },
       heute(uebung.id).map((e) => h('button', {
         class: `chip ${e.aufwaermen ? 'warm' : ''}`.trim(), type: 'button', text: chipText(uebung, e),

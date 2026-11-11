@@ -1,6 +1,7 @@
 // Berechnungen ohne Oberfläche und ohne Datenbank: „zuletzt“, Übungen vom letzten Mal,
 // Vorbelegung des Gewichts, Auto-Ende. Arbeitet auf dem Datenobjekt aus db.leseDaten().
 import { kommaZahl } from './format.js';
+import { gewichtsVorschlag, vorschlag } from './regeln.js';
 
 export const AUTO_ENDE_MS = 3 * 60 * 60 * 1000;
 
@@ -76,17 +77,16 @@ export function zuletztText(uebung, letztesMal) {
   return `zuletzt ${kg(letzter.gewicht)}`;
 }
 
-/** Hinweiszeile im Satz- bzw. Cardio-Sheet. Cardio ohne letztes Mal: null. */
+/** Hinweiszeile „Letztes Mal …“ im Satz- bzw. Cardio-Sheet (nur Arbeitssätze). Erstes Mal: null. */
 export function letztesMalText(uebung, letztesMal) {
   const e = letztesMal?.eintraege || [];
+  if (e.length === 0) return null;
   if (istCardio(uebung)) {
     const c = e.at(-1);
-    if (!c) return null;
     return `Letztes Mal ${kommaZahl(c.dauerMin)} min${c.km !== null ? ` · ${kommaZahl(c.km)} km` : ''}`;
   }
-  if (e.length === 0) return 'Noch kein Vorschlag';
   const wdh = e.map((s) => s.wdh).join(' / ');
-  if (istNurWdh(uebung)) return `Letztes Mal: ${wdh} Wdh.`;
+  if (istNurWdh(uebung)) return `Letztes Mal ${wdh} Wdh.`;
   const gewichte = new Set(e.map((s) => s.gewicht));
   if (gewichte.size === 1) {
     const w = e[0].gewicht;
@@ -97,12 +97,30 @@ export function letztesMalText(uebung, letztesMal) {
   return `Letztes Mal: ${e.map((s) => `${plus}${kg(s.gewicht)} × ${s.wdh}`).join(' / ')}`;
 }
 
-/** Gewicht des letzten Satzes dieser Übung: heute, sonst letztes Mal, sonst leer (null). */
+/** Rechts oben auf der Übungskarte: Vorschlag vom letzten Mal (bleibt das ganze Training gleich). */
+export function karteVorschlagText(uebung, letztesMal) {
+  const v = vorschlag(uebung, letztesMal?.eintraege);
+  switch (v.art) {
+    case 'gewicht': return `Vorschlag ${kg(v.wert)}`;
+    case 'zusatz': return v.wert > 0 ? `Vorschlag +${kg(v.wert)}` : 'Vorschlag ohne Zusatz';
+    case 'wdh': return `Ziel ${v.wert} Wdh.`;
+    case 'cardio': return `zuletzt ${kommaZahl(v.wert)} min`;
+    default: return 'erstes Mal';
+  }
+}
+
+/**
+ * Vorbelegung des Gewichts: letzter Arbeitssatz heute, sonst der Vorschlag vom letzten Mal,
+ * sonst (erstes Mal) der letzte Satz heute; sonst leer (null).
+ */
 export function vorbelegtesGewicht(uebung, heute, letztesMal) {
   if (istCardio(uebung) || istNurWdh(uebung)) return null;
-  const heuteLetzter = heute.filter((s) => s.gewicht !== null).at(-1);
-  if (heuteLetzter) return heuteLetzter.gewicht;
-  return letztesMal?.eintraege.at(-1)?.gewicht ?? null;
+  const mitGewicht = heute.filter((s) => s.gewicht !== null);
+  const arbeitHeute = mitGewicht.filter((s) => !s.aufwaermen).at(-1);
+  if (arbeitHeute) return arbeitHeute.gewicht;
+  const v = gewichtsVorschlag(uebung, letztesMal?.eintraege);
+  if (v) return v.wert;
+  return mitGewicht.at(-1)?.gewicht ?? null;
 }
 
 /** Kurzform für Chips. */

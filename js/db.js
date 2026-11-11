@@ -5,7 +5,8 @@ import { TRAININGSARTEN, STARTLISTE, STANDARD_MODUS, startModus } from './startd
 export const SCHEMA_VERSION = 2;
 
 // Datenbereiche, die in die Sicherung gehören, mit dem Schema, in dem sie dazukamen.
-// plaene und koerpergewicht bleiben bis zu ihren Funktionen in V2 leer.
+// plaene bleibt bis zum Trainingsplan (V2) leer. koerpergewicht enthält ab 0.3.0 höchstens
+// einen Eintrag (id KOERPERGEWICHT_ID); der Verlauf kommt in V2 dazu.
 export const STORE_SEIT_SCHEMA = {
   trainingsarten: 1,
   uebungen: 1,
@@ -26,6 +27,9 @@ const META_LETZTE_SICHERUNG = 'letzteSicherung';
 const META_ENTWURF_UEBUNG = 'entwurfUebung';
 const META_ENTWURF_SATZ = 'entwurfSatz';
 const META_ANSICHT = 'letzteAnsicht';
+const META_KG_GEFRAGT = 'koerpergewichtGefragt';
+
+export const KOERPERGEWICHT_ID = 'aktuell';
 
 // Migrationen ergänzen nur: `struktur` legt neue Stores oder Indizes an, `felder` setzt je
 // Store fehlende Felder auf einen Standardwert. Die Funktionen laufen beim Datenbank-Upgrade,
@@ -344,5 +348,24 @@ export function leseLetzteAnsicht() {
 export function setzeLetzteAnsicht(ansicht) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_ANSICHT, ansicht);
+  });
+}
+
+/** Körpergewicht speichern (ein Wert für die ganze App, gehört in die Sicherung). */
+export function speichereKoerpergewicht(kg) {
+  return mitTransaktion(['koerpergewicht', META], 'readwrite', (t) => {
+    t.objectStore('koerpergewicht').put({ id: KOERPERGEWICHT_ID, kg, geaendertAm: new Date().toISOString() });
+    schreibeMeta(t, META_KG_GEFRAGT, true);
+  });
+}
+
+/** Ob die App schon einmal automatisch nach dem Körpergewicht gefragt hat (nur Oberfläche). */
+export function leseKoerpergewichtGefragt() {
+  return mitTransaktion([META], 'readonly', async (t) => Boolean(await leseMeta(t, META_KG_GEFRAGT)));
+}
+
+export function setzeKoerpergewichtGefragt() {
+  return mitTransaktion([META], 'readwrite', (t) => {
+    schreibeMeta(t, META_KG_GEFRAGT, true);
   });
 }
