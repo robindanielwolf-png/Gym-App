@@ -13,6 +13,9 @@ const fortsetzen = h('div', { class: 'list resume', id: 'fortsetzen', hidden: tr
 const naechsteKarte = h('div', { class: 'next', id: 'als-naechstes', hidden: true });
 const artenTitel = h('div', { class: 'section-h oben-16', text: 'Trainingsart wählen' });
 
+// Callbacks pro Tab-ID, die aufgerufen werden, wenn der Tab aktiviert wird (Aktualisierung beim Öffnen)
+const tabAktivierungsCallbacks = new Map();
+
 function ansichtTraining() {
   return h('div', { class: 'view' },
     h('div', { class: 'title-row' },
@@ -73,6 +76,18 @@ function ansichtLeer(titel, hinweis) {
     h('div', { class: 'empty-wrap' }, leerHinweis(hinweis)));
 }
 
+/**
+ * Registriert einen Callback, der aufgerufen wird, wenn ein Tab aktiviert wird.
+ * Das ermöglicht es, dass Verlauf/Rekorde sofort den aktuellen Stand zeigen.
+ * tabId: 'verlauf' oder 'rekorde'
+ */
+export function registerTabActivation(tabId, callback) {
+  if (!tabAktivierungsCallbacks.has(tabId)) {
+    tabAktivierungsCallbacks.set(tabId, []);
+  }
+  tabAktivierungsCallbacks.get(tabId).push(callback);
+}
+
 export function baueTabs(wurzel) {
   const ansichten = {
     training: ansichtTraining(),
@@ -95,6 +110,17 @@ export function baueTabs(wurzel) {
       knoepfe[t.id].classList.toggle('on', t.id === id);
       if (t.id === id) knoepfe[t.id].setAttribute('aria-current', 'page');
       else knoepfe[t.id].removeAttribute('aria-current');
+    }
+    // Triggere Tab-Aktivierungs-Callbacks für aktuelle Datenaktualisierung
+    const callbacks = tabAktivierungsCallbacks.get(id);
+    if (callbacks) {
+      for (const cb of callbacks) {
+        try {
+          cb();
+        } catch (e) {
+          console.error(`Tab-Aktivierungs-Callback für '${id}' fehlgeschlagen:`, e);
+        }
+      }
     }
   };
 

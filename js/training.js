@@ -284,11 +284,15 @@ function kontextFuer(uebung) {
       const i = liste.findIndex((e) => e.id === eintrag.id);
       if (i >= 0) liste[i] = eintrag; else liste.push(eintrag);
       zeichne();
+      // Event triggern: Verlauf/Rekorde und andere Module laden Daten neu
+      window.dispatchEvent(new Event('gym-daten-geaendert'));
     },
     async loesche(store, eintrag) {
       await db.loescheEintrag(store, eintrag.id);
       daten[store] = daten[store].filter((e) => e.id !== eintrag.id);
       zeichne();
+      // Event triggern: Verlauf/Rekorde und andere Module laden Daten neu
+      window.dispatchEvent(new Event('gym-daten-geaendert'));
     },
     merke(entwurf) {
       db.setzeEntwurfSatz(entwurf && { ...entwurf, trainingId: lauf.training.id }).catch(() => {});
