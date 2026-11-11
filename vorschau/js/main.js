@@ -6,7 +6,7 @@ import { initStatistik } from './statistik.js';
 import { initStartseite } from './muskel-figur.js';
 import { initTraining, ladeUndZeige } from './training.js';
 import { folgeTastatur, offeneEbenen, zeigeAlert } from './ui.js';
-import { zeigeSicherungsErinnerung } from './sicherung-sheet.js';
+import { aktualisierePunkt, frageErstSichern } from './sicherung-sheet.js';
 
 folgeTastatur();
 const app = document.getElementById('app');
@@ -26,8 +26,8 @@ db.initialisiere()
   .then(() => ladeUndZeige({ start: true }))
   .then(() => aktualisiereStartseite())
   .then(() => {
-    // Zeige die Sicherungs-Erinnerung nach 1-2 Sekunden
-    setTimeout(() => { zeigeSicherungsErinnerung().catch(() => {}); }, 1500);
+    aktualisierePunkt();
+    return frageErstSichern();
   })
   .catch(() => {
     zeigeAlert({

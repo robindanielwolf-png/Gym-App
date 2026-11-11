@@ -289,7 +289,8 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .calendar-day.empty:active{background:transparent}
 .day-number{font-size:15px;line-height:20px;font-weight:600;color:var(--text);margin-bottom:4px}
 .day-icons{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
-.day-icon{width:18px;height:18px;flex:none}
+.tag-kachel{width:28px;height:22px;border-radius:7px;background:var(--accent-tint);color:var(--accent);display:grid;place-items:center;flex:none}
+.day-icon{width:16px;height:16px;flex:none}
 
 /* Trainingstag-Modal (Screen 08) */
 .sheet.verlauf-sheet{padding-top:8px}
@@ -301,7 +302,11 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .art-name{font-size:17px;line-height:22px;font-weight:600;color:var(--text)}
 .training-count{font-size:13px;line-height:18px;color:var(--text-2);margin-top:2px}
 .verlauf-uebung-liste{display:flex;flex-direction:column}
-.verlauf-uebung-eintrag{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:.5px solid var(--separator);cursor:pointer}
+.verlauf-uebung-eintrag{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 0 4px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.verlauf-uebung + .verlauf-uebung{border-top:.5px solid var(--separator)}
+.verlauf-saetze{margin:4px 0 12px}
+.verlauf-training + .verlauf-training{margin-top:24px}
+.verlauf-hinweis{padding:12px 0 24px;text-align:center}
 .verlauf-uebung-eintrag:active{background:var(--fill);border-radius:8px}
 .uebung-name{font-size:17px;line-height:22px;font-weight:600;flex:1;min-width:0;overflow-wrap:break-word}
 .uebung-saetze{font-size:15px;line-height:20px;color:var(--text-2);margin-top:4px}
@@ -312,9 +317,9 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .rekorde-kopf .title-row{padding:4px 16px 8px}
 .search-wrapper{padding:8px 16px 12px}
 .filter-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;margin:0}
-.chip{font-size:13px;line-height:18px;padding:8px 12px;border-radius:20px;background:var(--fill);color:var(--text-2);white-space:nowrap}
-.chip.on{background:var(--accent);color:#fff;font-weight:600}
-.chip:active{opacity:.8}
+.filter-chips .chip{font-size:13px;line-height:18px;padding:8px 12px;border-radius:20px;background:var(--fill);color:var(--text-2);white-space:nowrap}
+.filter-chips .chip.on{background:var(--accent);color:#fff;font-weight:600}
+.filter-chips .chip:active{opacity:.8}
 
 /* Statistik-View: Sätze pro Muskelgruppe */
 .statistik-container{padding:16px}
@@ -344,7 +349,12 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 
 /* Muskelfigur (dunkle Variante, Design 11.11.2026) */
 .figur-paar{display:flex;justify-content:center;gap:12px}
-.figur-svg{width:46%;max-width:170px;height:auto;overflow:visible;filter:url(#figur-schatten)}
+.figur-svg{display:block;height:auto;overflow:visible;filter:url(#figur-schatten)}
+.figur-seite{position:relative}
+.figur-paar .figur-seite{width:46%;max-width:170px}
+.figur-paar .figur-svg{width:100%}
+.figur-rand{fill:none;stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke}
+.figur-blase{position:absolute;transform:translateX(-50%);background:#fff;border-radius:10px;padding:6px 10px;font-size:13px;line-height:18px;font-weight:600;color:var(--text);box-shadow:0 2px 10px rgba(0,0,0,.15);white-space:nowrap;pointer-events:none;z-index:1}
 .figur-umriss{fill:none;stroke:#C7C7CC;stroke-width:2;vector-effect:non-scaling-stroke}
 .figur-muskeln{filter:url(#muskel-glanz)}
 .figur-m{transition:fill .25s ease-out}
@@ -395,3 +405,7 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .list.auf-weiss-karte{margin:12px 0 0;background:var(--surface)}
 .detail-pfeil{transition:transform .2s ease-out}
 .detail-pfeil.offen{transform:rotate(90deg)}
+.glass{position:relative}
+.glass.punkt::after{content:"";position:absolute;top:5px;right:5px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #fff}
+.muskel-wahl{max-width:55%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row:disabled{opacity:.45}

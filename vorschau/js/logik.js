@@ -113,7 +113,7 @@ export function karteVorschlagText(uebung, letztesMal) {
     case 'gewicht': return `Vorschlag ${kg(v.wert)}`;
     case 'zusatz': return v.wert > 0 ? `Vorschlag +${kg(v.wert)}` : 'Vorschlag ohne Zusatz';
     case 'wdh': return `Ziel ${v.wert} Wdh.`;
-    case 'zeit': return `zuletzt ${formatZeit(v.wert)}`;
+    case 'zeit': return `Ziel ${formatZeit(v.wert)}`;
     case 'cardio': return `zuletzt ${kommaZahl(v.wert)} min`;
     default: return 'erstes Mal';
   }

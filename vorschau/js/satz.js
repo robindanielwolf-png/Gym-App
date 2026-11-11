@@ -66,6 +66,7 @@ const kgText = (w) => `${kommaZahl(w)} kg`;
 function vorschlagZeile(v) {
   if (v.art === 'erstes') return h('p', { class: 'hint', text: 'Noch kein Vorschlag – erstes Mal' });
   if (v.art === 'wdh') return h('p', { class: 'hint' }, 'Ziel ', h('b', { text: `${v.wert} Wdh.` }));
+  if (v.art === 'zeit') return h('p', { class: 'hint' }, 'Ziel ', h('b', { text: `${v.wert} Sek.` }));
   const zahl = v.art === 'zusatz' ? (v.wert > 0 ? `+${kgText(v.wert)}` : 'ohne Zusatz') : kgText(v.wert);
   const diff = v.diff === 0 ? null : `(${v.diff > 0 ? '+' : '−'}${kgText(Math.abs(v.diff))})`;
   return h('p', { class: 'hint' }, 'Vorschlag ', h('b', { text: zahl }), diff && ' ', diff && h('span', { class: 'd', text: diff }));

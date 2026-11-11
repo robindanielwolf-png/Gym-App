@@ -45,7 +45,8 @@ export function vorschlag(uebung, eintraegeLetztesMal) {
   if (istCardio(uebung)) return e.length ? { art: 'cardio', wert: e.at(-1).dauerMin, diff: 0 } : { art: 'erstes', wert: null, diff: 0 };
   if (istZeit(uebung)) {
     const s = arbeit(e);
-    return s.length ? { art: 'zeit', wert: s.at(-1).wdh, diff: 0 } : { art: 'erstes', wert: null, diff: 0 };
+    // Ziel-Zeit = längster Arbeitssatz vom letzten Mal + 5 s (Trainingsexperte).
+    return s.length ? { art: 'zeit', wert: Math.max(...s.map((x) => x.wdh)) + 5, diff: 0 } : { art: 'erstes', wert: null, diff: 0 };
   }
   if (istNurWdh(uebung)) {
     const ziel = zielWdh(uebung, e);

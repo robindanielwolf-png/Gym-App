@@ -1,5 +1,5 @@
 // Aufbau und Prüfung der Sicherungsdatei. Ohne Zugriff auf Oberfläche oder Datenbank.
-import { SCHEMA_VERSION, STORE_SEIT_SCHEMA, DATEN_STORES, ergaenzeDaten, leseSicherungsErinnerung, setzeSicherungsErinnerung } from './db.js';
+import { SCHEMA_VERSION, STORE_SEIT_SCHEMA, DATEN_STORES, ergaenzeDaten } from './db.js';
 import { GERAETE, MODI, STARTLISTE } from './startdaten.js';
 import { APP_VERSION } from './version.js';
 
@@ -97,93 +97,4 @@ export function pruefeSicherung(text) {
   ergaenzeDaten(daten, schemaVersion);
   if (!datenGueltig(daten)) return null;
   return { exportiertAm, daten };
-}
-
-// --- Sicherungs-Erinnerungslogik ---
-
-const ERINNERUNGS_TAGE = 7;
-const ERINNERUNGS_TRAININGS = 5;
-
-/**
- * Prüft, ob die Sicherungs-Erinnerung angezeigt werden sollte.
- * Liefert ein Objekt mit { sollZeigen: boolean, trainingsNeu: number, tagenSeither: number }
- * oder null, wenn leseMeta ausfällt.
- */
-export async function pruefeSicherungsErinnerung(daten) {
-  try {
-    const erinnerung = await leseSicherungsErinnerung();
-
-    // Wenn "Nie mehr" gesetzt wurde, nicht zeigen
-    if (erinnerung?.zeigeErinneringNicht === true) {
-      return { sollZeigen: false, trainingsNeu: 0, tagenSeither: 0 };
-    }
-
-    // Falls noch nie exportiert
-    if (!erinnerung || !erinnerung.letzterExportDatum) {
-      const trainingsCount = daten.trainings.length;
-      return { sollZeigen: trainingsCount > 0, trainingsNeu: trainingsCount, tagenSeither: -1 };
-    }
-
-    // Berechne Tage seit Export und neue Trainings
-    const letzterExport = new Date(erinnerung.letzterExportDatum);
-    const jetzt = new Date();
-    const diffMs = jetzt.getTime() - letzterExport.getTime();
-    const tagenSeither = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    const trainingsNeu = daten.trainings.length - (erinnerung.trainingsCountDamals || 0);
-
-    // Zeige wenn > X Tage oder > Y Trainings
-    const sollZeigen = tagenSeither >= ERINNERUNGS_TAGE || trainingsNeu >= ERINNERUNGS_TRAININGS;
-
-    return { sollZeigen, trainingsNeu, tagenSeither };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Setzt die Sicherungs-Erinnerung nach erfolgreichem Export.
- * Speichert das aktuelle Datum und die Trainings-Anzahl.
- */
-export async function resetSicherungsErinnerung(daten) {
-  try {
-    await setzeSicherungsErinnerung({
-      letzterExportDatum: new Date().toISOString(),
-      trainingsCountDamals: daten.trainings.length,
-      zeigeErinneringNicht: false
-    });
-  } catch {
-    // Fehler beim Speichern ignorieren, Export ist bereits fertig
-  }
-}
-
-/**
- * Speichert die "Nie mehr"-Einstellung (wird aufgerufen vom Modal).
- */
-export async function setzErinnerungNieMehr() {
-  try {
-    const erinnerung = await leseSicherungsErinnerung();
-    await setzeSicherungsErinnerung({
-      ...(erinnerung || {}),
-      zeigeErinneringNicht: true
-    });
-  } catch {
-    // Fehler ignorieren
-  }
-}
-
-/**
- * Speichert die "Später"-Einstellung: Setzt den Counter so, als ob
- * wir nicht alle diese Trainings hätten (verschiebt die Zeitschwelle).
- */
-export async function setzErinnerungSpaeter(daten) {
-  try {
-    await setzeSicherungsErinnerung({
-      letzterExportDatum: new Date().toISOString(),
-      trainingsCountDamals: daten.trainings.length,
-      zeigeErinneringNicht: false
-    });
-  } catch {
-    // Fehler ignorieren
-  }
 }

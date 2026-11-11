@@ -1,9 +1,7 @@
 // Sheet 10: Export, Import und „Import rückgängig machen”.
 import * as db from './db.js';
-import {
-  baueSicherung, dateiname, istLeer, pruefeSicherung, zaehle,
-  pruefeSicherungsErinnerung, resetSicherungsErinnerung, setzErinnerungNieMehr, setzErinnerungSpaeter
-} from './sicherung.js';
+import { baueSicherung, dateiname, istLeer, pruefeSicherung, zaehle } from './sicherung.js';
+import { APP_VERSION } from './version.js';
 import { datumLang, datumZeit, inhaltText, letzteSicherungText } from './format.js';
 import { einmalig, h, icon, oeffneSheet, sheetKopf, griff, zeigeAlert, zeigeHinweis } from './ui.js';
 
@@ -71,9 +69,8 @@ function exportiere() {
     if (ergebnis === 'fertig') {
       try {
         await db.setzeLetzteSicherung(sicherung.exportiertAm);
-        // Nach erfolgreichem Export: Erinnerung resetten
-        await resetSicherungsErinnerung(stand.daten);
         await ladeStand();
+        aktualisierePunkt();
       } catch { /* Datei ist geschrieben, nur die Anzeige fehlt */ }
     }
     return ergebnis;
@@ -93,6 +90,7 @@ async function fuehreImportAus(pruefung, inhalt, datum, mitKopie) {
     return;
   }
   zeigeHinweis({ titel: 'Sicherung importiert', text: `${inhalt} vom ${datum}` });
+  aktualisierePunkt();
 }
 
 async function pruefeUndFrage(datei) {
@@ -196,53 +194,50 @@ function dateiFeld() {
   return feld;
 }
 
-/**
- * Zeigt die Sicherungs-Erinnerung an, wenn diese nötig ist.
- * Wird beim App-Start aufgerufen.
- */
-export async function zeigeSicherungsErinnerung() {
+const ERINNERUNG_TAGE = 7;
+const TAG_MS = 86400000;
+
+/** Ganze Tage seit der letzten Sicherung; null = noch nie gesichert. */
+async function tageSeitSicherung() {
+  const letzte = await db.leseLetzteSicherung();
+  return letzte ? Math.floor((Date.now() - Date.parse(letzte)) / TAG_MS) : null;
+}
+
+/** Blauer Punkt am Glas-Knopf, solange die letzte Sicherung ≥ 7 Tage her ist (oder fehlt). */
+export async function aktualisierePunkt() {
   try {
-    // Lade die Daten und prüfe, ob eine Erinnerung angezeigt werden sollte
+    const tage = await tageSeitSicherung();
     const stand = await db.leseStand();
-    const pruefung = await pruefeSicherungsErinnerung(stand.daten);
+    const faellig = !istLeer(stand.daten) && (tage === null || tage >= ERINNERUNG_TAGE);
+    document.getElementById('glas-knopf')?.classList.toggle('punkt', faellig);
+  } catch { /* nur Anzeige */ }
+}
 
-    if (!pruefung || !pruefung.sollZeigen) {
-      return;
-    }
+async function frageUndSichere(titel, text) {
+  const wahl = await zeigeAlert({ titel, text, knoepfe: [{ id: 'spaeter', label: 'Später' }, { id: 'sichern', label: 'Sichern', fett: true }] });
+  if (wahl === 'sichern') await oeffneSicherung();
+}
 
-    // Baue den Text der Erinnerung
-    let erinnerungsText = '';
-    if (pruefung.tagenSeither === -1) {
-      erinnerungsText = 'Du hast noch nie Trainingsdaten exportiert. Sichere sie regelmäßig, um Datenverlust zu vermeiden.';
-    } else {
-      const zeit = pruefung.tagenSeither === 1 ? 'einen Tag' : `${pruefung.tagenSeither} Tagen`;
-      erinnerungsText = `Es sind ${pruefung.trainingsNeu} neue Trainings seit deinem letzten Export (vor ${zeit}).`;
-    }
+/** Screen 11: nach „Training beenden“, wenn die letzte Sicherung ≥ 7 Tage her ist. */
+export async function frageJetztSichern(gespeichertText) {
+  try {
+    const tage = await tageSeitSicherung();
+    if (tage !== null && tage < ERINNERUNG_TAGE) return;
+    const seit = tage === null ? 'Du hast noch nie gesichert.' : `Deine letzte Sicherung ist ${tage} Tage her.`;
+    await frageUndSichere('Jetzt sichern?', `${seit} ${gespeichertText}`);
+  } catch { /* Erinnerung ist nicht wichtig genug für eine Fehlermeldung */ }
+}
 
-    // Zeige das Modal
-    const wahl = await zeigeAlert({
-      titel: '🔒 Trainingsdaten sichern?',
-      text: erinnerungsText,
-      knoepfe: [
-        { id: 'jetzt', label: 'Jetzt exportieren', fett: true },
-        { id: 'spaeter', label: 'In 7 Tagen erinnern' },
-        { id: 'nie', label: 'Nicht mehr' }
-      ]
-    });
-
-    if (wahl === 'jetzt') {
-      // Öffne das Sicherungs-Sheet und exportiere
-      await oeffneSicherung();
-    } else if (wahl === 'spaeter') {
-      // Setzt die Erinnerung auf später
-      await setzErinnerungSpaeter(stand.daten);
-    } else if (wahl === 'nie') {
-      // Setzt "Nie mehr"
-      await setzErinnerungNieMehr();
-    }
-  } catch {
-    // Fehler beim Prüfen ignorieren, die App lädt trotzdem
-  }
+/** Beim ersten Start einer neuen Version einmal „Erst sichern?“, sofern es Daten gibt. */
+export async function frageErstSichern() {
+  try {
+    const gesehen = await db.leseGeseheneVersion();
+    if (gesehen === APP_VERSION) return;
+    await db.setzeGeseheneVersion(APP_VERSION);
+    const stand = await db.leseStand();
+    if (istLeer(stand.daten)) return;
+    await frageUndSichere('Erst sichern?', `Die App ist jetzt auf Version ${APP_VERSION}. Sichere deine Trainings einmal, bevor du weitermachst.`);
+  } catch { /* App läuft auch ohne diese Frage */ }
 }
 
 export const oeffneSicherung = einmalig(async () => {

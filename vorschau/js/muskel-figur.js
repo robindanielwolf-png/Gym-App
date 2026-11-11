@@ -20,12 +20,31 @@ function seite(figur, punkte, zeitraum, label) {
   const bild = svg('svg', { viewBox: figur.viewBox, class: 'figur-svg', role: 'img', 'aria-label': label });
   // Ein Filter für alle Muskeln statt je Fläche: sieht dank der Lücken gleich aus, rendert viel schneller.
   const muskeln = svg('g', { class: 'figur-muskeln' });
+  const auswahl = svg('g', { class: 'figur-auswahl' });
   for (const [id, d] of figur.teile) {
-    const klasse = id === 'head' ? 'figur-gesicht' : `figur-m s${MUSKELN_NACH.has(id) ? muskelStufe(punkte[id], zeitraum) : 0}`;
-    muskeln.append(svg('path', { d, class: klasse }));
+    const istMuskel = MUSKELN_NACH.has(id);
+    const klasse = id === 'head' ? 'figur-gesicht' : `figur-m s${istMuskel ? muskelStufe(punkte[id], zeitraum) : 0}`;
+    muskeln.append(svg('path', istMuskel ? { d, class: klasse, 'data-m': id } : { d, class: klasse }));
   }
-  bild.append(svg('path', { d: figur.umriss, class: 'figur-umriss' }), muskeln);
-  return bild;
+  bild.append(svg('path', { d: figur.umriss, class: 'figur-umriss' }), muskeln, auswahl);
+
+  // Muskel antippen: Rand in Akzentfarbe und kleines Label „Brust · 3 Sätze“ (Design, Muskel-Karte).
+  const blase = h('div', { class: 'figur-blase', hidden: true });
+  const wahl = (ev) => {
+    const id = ev.target.closest?.('[data-m]')?.getAttribute('data-m');
+    auswahl.replaceChildren();
+    if (!id) { blase.hidden = true; return; }
+    for (const p of muskeln.querySelectorAll(`[data-m="${id}"]`)) auswahl.append(svg('path', { d: p.getAttribute('d'), class: 'figur-rand' }));
+    const wert = punkte[id] || 0;
+    blase.textContent = `${MUSKELN_NACH.get(id).label} · ${wert > 0 ? `${zahl(wert)} ${wert === 1 ? 'Satz' : 'Sätze'}` : 'nicht trainiert'}`;
+    const r = rahmen.getBoundingClientRect();
+    blase.hidden = false;
+    blase.style.left = `${Math.min(Math.max(ev.clientX - r.left, 60), r.width - 60)}px`;
+    blase.style.top = `${Math.max(ev.clientY - r.top - 44, 0)}px`;
+  };
+  bild.addEventListener('click', wahl);
+  const rahmen = h('div', { class: 'figur-seite' }, bild, blase);
+  return rahmen;
 }
 
 function legende() {
@@ -102,13 +121,14 @@ export function baueTrainingsFigur(daten, trainingId) {
   return h('div', { class: 'figur-im-sheet' }, baueMuskelFigur(punkte, 'training'));
 }
 
-/** Übersicht nach „Training beenden“: nur wenn das Training Kraft-Sätze hat. */
+/** Übersicht nach „Training beenden“ (nur bei Kraft-Sätzen); erfüllt sich, wenn sie geschlossen ist. */
 export function zeigeTrainingsUebersicht(daten, trainingId) {
   const punkte = muskelPunkte(daten, [trainingId]);
-  if (Object.keys(punkte).length === 0) return;
-  oeffneSheet({
+  if (Object.keys(punkte).length === 0) return Promise.resolve();
+  return new Promise((fertig) => oeffneSheet({
     klasse: 'figur-sheet',
+    beiZu: fertig,
     baue: (zu) => [griff(), sheetKopf('Dieses Training', zu), sheetInhalt(punkte, 'training'),
       h('div', { class: 'sheet-unten' }, h('button', { class: 'btn primary', type: 'button', text: 'Fertig', onclick: zu }))]
-  });
+  }));
 }

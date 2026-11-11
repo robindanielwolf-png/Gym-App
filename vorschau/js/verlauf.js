@@ -3,8 +3,9 @@
 
 import * as db from './db.js';
 import { registerTabUpdater } from './tab-events.js';
-import { datumKurz, kommaZahl } from './format.js';
-import { istZeit } from './logik.js';
+import { datumLang, uhrzeit } from './format.js';
+import { chipText, nachZeit } from './logik.js';
+import { oeffneSatz } from './satz.js';
 import { baueTrainingsFigur } from './muskel-figur.js';
 import { oeffneUebungsdetail } from './uebungsdetail.js';
 import { h, icon, oeffneSheet, sheetKopf, griff, einmalig, leerHinweis } from './ui.js';
@@ -94,7 +95,7 @@ function schreibeKalenderTage(container, year, month, trainingNachDatumMap, artN
       trainings.slice(0, 2).forEach(training => {
         const art = artNachMap.get(training.artId);
         if (art && art.icon) {
-          iconsDiv.append(icon(art.icon, 'day-icon'));
+          iconsDiv.append(h('span', { class: 'tag-kachel' }, icon(art.icon, 'day-icon')));
         }
       });
       dayEl.append(iconsDiv);
@@ -107,88 +108,91 @@ function schreibeKalenderTage(container, year, month, trainingNachDatumMap, artN
 }
 
 /**
- * Öffnet Modal mit den Übungen + Sätze eines Trainingstags.
- * training: { id, artId, startedAt, ... }
- * daten: { trainingsarten, uebungen, saetze, cardio, ... }
+ * Kontext für das Satz-Sheet bei einem beendeten Training (#13): nur Ändern und Löschen,
+ * ohne Entwurf, Vorschlag und Rekord-Hinweis. zustand.daten wird nach jeder Änderung neu geladen.
  */
-function oeffneTrainingsDetail(training, daten, artNachMap, onUebungTipp) {
-  const art = artNachMap.get(training.artId);
-  if (!art) return;
-
-  const eintraege = eintraegeVonTraining(daten, training.id);
-  const uebungen = new Map(daten.uebungen.map(u => [u.id, u]));
-
-  // Gruppiere Einträge nach Übung
-  const uebungMap = new Map();
-  eintraege.forEach(eintrag => {
-    if (!uebungMap.has(eintrag.uebungId)) {
-      uebungMap.set(eintrag.uebungId, []);
-    }
-    uebungMap.get(eintrag.uebungId).push(eintrag);
-  });
-
-  // Sortiere nach Reihenfolge des Trainings
-  const reihenfolge = training.uebungIds || [];
-  const sortierteUebungen = [...uebungMap.keys()].sort((a, b) => {
-    const aIdx = reihenfolge.indexOf(a);
-    const bIdx = reihenfolge.indexOf(b);
-    if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx;
-    if (aIdx >= 0) return -1;
-    if (bIdx >= 0) return 1;
-    return 0;
-  });
-
-  // Erstelle Sheet-Inhalt
-  const inhalt = h('div', { class: 'verlauf-modal-scroll' });
-
-  // Überschrift im Modal
-  const titel = h('div', { class: 'modal-title' },
-    h('div', { class: 'title-icon' }, icon(art.icon)),
-    h('div', { class: 'title-text' },
-      h('div', { class: 'art-name', text: art.name }),
-      h('div', { class: 'training-count', text: `${uebungMap.size} Übung${uebungMap.size !== 1 ? 'en' : ''} · ${eintraege.length} ${eintraege.length === 1 ? 'Satz' : 'Sätze'}` })));
-  inhalt.append(titel);
-  const figur = baueTrainingsFigur(daten, training.id);
-  if (figur) inhalt.append(figur);
-
-  // Liste der Übungen
-  const liste = h('div', { class: 'verlauf-uebung-liste' });
-
-  sortierteUebungen.forEach(uebungId => {
-    const uebung = uebungen.get(uebungId);
-    if (!uebung) return;
-
-    const saetze = uebungMap.get(uebungId) || [];
-    const saetzeText = saetze.map(satz => {
-      if (satz.dauerMin !== undefined) {
-        // Cardio
-        return satz.km ? `${satz.dauerMin} min · ${kommaZahl(satz.km)} km` : `${satz.dauerMin} min`;
-      }
-      if (istZeit(uebung)) return `${satz.wdh} s`;
-      // Kraft / nur Wdh.
-      if (typeof satz.gewicht !== 'number') return `${satz.wdh}×`;
-      return `${kommaZahl(satz.gewicht)} kg × ${satz.wdh}`;
-    }).join(', ');
-
-    const uebungEl = h('div', {
-      class: 'verlauf-uebung-eintrag',
-      onclick: () => {
-        onUebungTipp(uebung);
-      }
+function kontextFuerAltes(zustand, trainingId, beiAenderung) {
+  const geaendert = async () => {
+    window.dispatchEvent(new Event('gym-daten-geaendert'));
+    await beiAenderung();
+  };
+  return {
+    trainingId,
+    letztesMal: null,
+    heute: (uebungId) => eintraegeVonTraining(zustand.daten, trainingId).filter((e) => e.uebungId === uebungId).sort(nachZeit),
+    async speichere(store, eintrag) { await db.speichereEintrag(store, eintrag); await geaendert(); },
+    async loesche(store, eintrag) { await db.loescheEintrag(store, eintrag.id); await geaendert(); },
+    merke() {},
+    pruefeRekord() {},
+    koerpergewicht: () => {
+      const k = (zustand.daten.koerpergewicht || []).at(-1);
+      return typeof k?.kg === 'number' ? k.kg : null;
     },
-      h('div', { class: 'uebung-name', text: uebung.name }),
-      h('div', { class: 'uebung-saetze', text: saetzeText }),
-      h('div', { class: 'uebung-pfeil' }, icon('i-chev')));
+    setzeKoerpergewicht: (kg) => db.speichereKoerpergewicht(kg),
+    kgGefragt: () => true,
+    markiereKgGefragt() {}
+  };
+}
 
-    liste.append(uebungEl);
-  });
+/** Ein Training im Tages-Sheet: Kopf, Muskelfigur, Übungen mit antippbaren Sätzen. */
+function trainingsBlock(zustand, training, aktualisiere) {
+  const daten = zustand.daten;
+  const art = artNach(daten).get(training.artId);
+  const eintraege = eintraegeVonTraining(daten, training.id).sort(nachZeit);
+  if (!art || eintraege.length === 0) return null;
+  const uebungen = new Map(daten.uebungen.map((u) => [u.id, u]));
+  const proUebung = new Map();
+  for (const e of eintraege) {
+    if (!proUebung.has(e.uebungId)) proUebung.set(e.uebungId, []);
+    proUebung.get(e.uebungId).push(e);
+  }
+  const reihenfolge = training.uebungIds || [];
+  const rang = (id) => (reihenfolge.indexOf(id) >= 0 ? reihenfolge.indexOf(id) : reihenfolge.length);
+  const ids = [...proUebung.keys()].sort((a, b) => rang(a) - rang(b));
 
-  inhalt.append(liste);
+  return h('div', { class: 'verlauf-training' },
+    h('div', { class: 'modal-title' },
+      h('div', { class: 'title-icon' }, icon(art.icon)),
+      h('div', { class: 'title-text' },
+        h('div', { class: 'art-name', text: art.name }),
+        h('div', { class: 'training-count', text: `${uhrzeit(training.startedAt)} · ${ids.length} ${ids.length === 1 ? 'Übung' : 'Übungen'} · ${eintraege.length} ${eintraege.length === 1 ? 'Satz' : 'Sätze'}` }))),
+    baueTrainingsFigur(daten, training.id),
+    h('div', { class: 'verlauf-uebung-liste' }, ids.map((id) => {
+      const uebung = uebungen.get(id);
+      if (!uebung) return null;
+      return h('div', { class: 'verlauf-uebung' },
+        h('button', { class: 'verlauf-uebung-eintrag', type: 'button', onclick: () => oeffneUebungsdetail(zustand.daten, uebung) },
+          h('div', { class: 'uebung-name', text: uebung.name }),
+          h('div', { class: 'uebung-pfeil' }, icon('i-chev'))),
+        h('div', { class: 'sets verlauf-saetze' }, proUebung.get(id).map((e) =>
+          h('button', {
+            class: e.aufwaermen ? 'chip warm' : 'chip', type: 'button', text: chipText(uebung, e),
+            'aria-label': `Satz ändern: ${chipText(uebung, e)}`,
+            onclick: () => oeffneSatz({ uebung, kontext: kontextFuerAltes(zustand, training.id, aktualisiere), bearbeite: e })
+          }))));
+    })));
+}
 
-  // Öffne Sheet
+/** Tages-Sheet: alle Trainings des Tages; Sätze antippen zum Ändern oder Löschen. */
+function oeffneTagesDetail(datenStart, trainings) {
+  const zustand = { daten: datenStart };
+  const ids = trainings.map((t) => t.id);
+  const inhalt = h('div', { class: 'verlauf-modal-scroll' });
+  const fuelle = () => {
+    const bloecke = ids.map((id) => zustand.daten.trainings.find((t) => t.id === id))
+      .filter(Boolean).map((t) => trainingsBlock(zustand, t, aktualisiere)).filter(Boolean);
+    inhalt.replaceChildren(
+      ...(bloecke.length ? bloecke : [h('p', { class: 'foot-links', text: 'An diesem Tag gibt es keine Sätze mehr.' })]),
+      h('p', { class: 'foot-links verlauf-hinweis', text: 'Satz antippen, um ihn zu ändern oder zu löschen.' }));
+  };
+  const aktualisiere = async () => {
+    zustand.daten = await db.leseDaten();
+    fuelle();
+  };
+  fuelle();
   oeffneSheet({
     klasse: 'verlauf-sheet',
-    baue: (zu) => [griff(), sheetKopf(datumKurz(training.startedAt), zu), inhalt]
+    baue: (zu) => [griff(), sheetKopf(datumLang(trainings[0].startedAt), zu), inhalt]
   });
 }
 
@@ -251,11 +255,7 @@ export function initVerlauf() {
     // Kalender-Tage
     schreibeKalenderTage(kalenderContainer, aktuellJahr, aktuellMonat, trainingMap, artNachMap,
       (tag, trainings) => {
-        // Alle Trainings dieses Tages zeigen (nur das erste für jetzt)
-        // TODO: Falls mehrere Trainings an einem Tag, erst Liste zeigen
-        if (trainings.length > 0) {
-          oeffneTrainingsDetail(trainings[0], datenGlobal, artNachMap, (uebung) => oeffneUebungsdetail(datenGlobal, uebung));
-        }
+        if (trainings.length > 0) oeffneTagesDetail(datenGlobal, trainings);
       });
   }
 

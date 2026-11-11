@@ -28,7 +28,7 @@ const META_ENTWURF_UEBUNG = 'entwurfUebung';
 const META_ENTWURF_SATZ = 'entwurfSatz';
 const META_ANSICHT = 'letzteAnsicht';
 const META_KG_GEFRAGT = 'koerpergewichtGefragt';
-const META_SICHERUNGS_ERINNERUNG = 'sicherungsErinnerung';
+const META_VERSION = 'geseheneVersion';
 
 export const KOERPERGEWICHT_ID = 'aktuell';
 
@@ -371,14 +371,18 @@ export function setzeKoerpergewichtGefragt() {
   });
 }
 
-/** Liest die Sicherungs-Erinnerungsdaten: { letzterExportDatum, trainingsCountDamals, zeigeErinneringNicht } */
-export function leseSicherungsErinnerung() {
-  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_SICHERUNGS_ERINNERUNG));
+/** Zeitpunkt der letzten Sicherung (ISO) oder null. */
+export function leseLetzteSicherung() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_LETZTE_SICHERUNG));
 }
 
-/** Speichert die Sicherungs-Erinnerungsdaten. */
-export function setzeSicherungsErinnerung(daten) {
+/** Zuletzt gestartete App-Version (für „Erst sichern?“) oder null. */
+export function leseGeseheneVersion() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_VERSION));
+}
+
+export function setzeGeseheneVersion(version) {
   return mitTransaktion([META], 'readwrite', (t) => {
-    schreibeMeta(t, META_SICHERUNGS_ERINNERUNG, daten);
+    schreibeMeta(t, META_VERSION, version);
   });
 }
