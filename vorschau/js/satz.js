@@ -130,6 +130,8 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   const zusatz = istZusatz(uebung);
   const zeitUebung = istZeit(uebung);
   const koerper = nurWdh || zusatz || zeitUebung;
+  // Nur Wdh. und Zeit haben kein Gewichtsfeld; der Satz speichert dann gewicht: null.
+  const ohneGewicht = nurWdh || zeitUebung;
   const heute = () => kontext.heute(uebung.id);
   const nummer = bearbeite ? heute().findIndex((s) => s.id === bearbeite.id) + 1 : heute().length + 1;
   const vor = vorschlag(uebung, kontext.letztesMal?.eintraege);
@@ -171,7 +173,7 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   const kgZeile = koerper && h('button', { class: 'srow', type: 'button', 'aria-label': 'Körpergewicht' },
     h('span', { class: 'l', text: 'Körpergewicht' }), kgWert);
 
-  const gueltig = () => ganzeZahl(wdh.value) !== null && (nurWdh || nichtNegativeZahl(gewicht.value) !== null);
+  const gueltig = () => ganzeZahl(wdh.value) !== null && (ohneGewicht || nichtNegativeZahl(gewicht.value) !== null);
 
   const merke = () => kontext.merke({
     uebungId: uebung.id, satzId: bearbeite?.id || null,
@@ -265,12 +267,12 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   if (kgZeile) kgZeile.addEventListener('click', () => oeffneKg(kontext.koerpergewicht() !== null));
 
   const werte = () => ({
-    gewicht: nurWdh ? null : nichtNegativeZahl(gewicht.value),
+    gewicht: ohneGewicht ? null : nichtNegativeZahl(gewicht.value),
     wdh: ganzeZahl(wdh.value),
     aufwaermen
   });
 
-  const gewichtTeil = (nurWdh || zeitUebung) ? [] : [
+  const gewichtTeil = ohneGewicht ? [] : [
     gewichtLabel,
     h('div', { class: 'stepper' },
       minus,

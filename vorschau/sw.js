@@ -3,7 +3,7 @@
 // Modul-URLs (?v=) samt CSP-Hash der Import-Map in index.html.
 const VERSION = '0.4.0';
 // Stand innerhalb einer Version: bei jeder Dateiänderung erhöhen, damit der Cache sicher neu lädt.
-const STAND = 9;
+const STAND = 10;
 
 const SCOPE_PFAD = new URL(self.registration.scope).pathname;
 const IST_VORSCHAU = SCOPE_PFAD.endsWith('/vorschau/');
