@@ -6,7 +6,9 @@ import { zeigeSicherungsErinnerung } from './sicherung-sheet.js';
 
 folgeTastatur();
 const app = document.getElementById('app');
-baueTabs(app);
+
+// Übergebe einen Callback für Daten-Zugriff
+baueTabs(app, () => db.leseDaten().catch(() => null));
 initTraining(app);
 
 navigator.storage?.persist?.().catch(() => {});
