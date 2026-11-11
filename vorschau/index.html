@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-DlYU/e4L651QrXwEDo3L/f5CE1CIUm05dX+mfX6fxbE='; img-src 'self' blob: data:; object-src 'none'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-jZeDBEtN/EZuhyGYKrp55ERI+dEFnw1n+AkUcq0/R5s='; img-src 'self' blob: data:; object-src 'none'; base-uri 'self'">
 <title>Gym-Tracker</title>
 <meta name="theme-color" content="#F2F2F7">
 <meta name="color-scheme" content="light">
@@ -17,31 +17,31 @@
 <link rel="stylesheet" href="./css/app.css">
 <script type="importmap">{
  "imports": {
-  "./js/db.js": "./js/db.js?v=0.4.0-4",
-  "./js/format.js": "./js/format.js?v=0.4.0-4",
-  "./js/logik.js": "./js/logik.js?v=0.4.0-4",
-  "./js/main.js": "./js/main.js?v=0.4.0-4",
-  "./js/muskel-karte.js": "./js/muskel-karte.js?v=0.4.0-4",
-  "./js/muskel-svg-pfade.js": "./js/muskel-svg-pfade.js?v=0.4.0-4",
-  "./js/muskeln.js": "./js/muskeln.js?v=0.4.0-4",
-  "./js/regeln.js": "./js/regeln.js?v=0.4.0-4",
-  "./js/rekorde.js": "./js/rekorde.js?v=0.4.0-4",
-  "./js/satz.js": "./js/satz.js?v=0.4.0-4",
-  "./js/sicherung-sheet.js": "./js/sicherung-sheet.js?v=0.4.0-4",
-  "./js/sicherung.js": "./js/sicherung.js?v=0.4.0-4",
-  "./js/startdaten.js": "./js/startdaten.js?v=0.4.0-4",
-  "./js/statistik.js": "./js/statistik.js?v=0.4.0-4",
-  "./js/tab-events.js": "./js/tab-events.js?v=0.4.0-4",
-  "./js/tabs.js": "./js/tabs.js?v=0.4.0-4",
-  "./js/training.js": "./js/training.js?v=0.4.0-4",
-  "./js/uebungen.js": "./js/uebungen.js?v=0.4.0-4",
-  "./js/ui.js": "./js/ui.js?v=0.4.0-4",
-  "./js/umgebung.js": "./js/umgebung.js?v=0.4.0-4",
-  "./js/verlauf.js": "./js/verlauf.js?v=0.4.0-4",
-  "./js/version.js": "./js/version.js?v=0.4.0-4"
+  "./js/db.js": "./js/db.js?v=0.4.0-5",
+  "./js/format.js": "./js/format.js?v=0.4.0-5",
+  "./js/logik.js": "./js/logik.js?v=0.4.0-5",
+  "./js/main.js": "./js/main.js?v=0.4.0-5",
+  "./js/muskel-figur-pfade.js": "./js/muskel-figur-pfade.js?v=0.4.0-5",
+  "./js/muskel-figur.js": "./js/muskel-figur.js?v=0.4.0-5",
+  "./js/muskeln.js": "./js/muskeln.js?v=0.4.0-5",
+  "./js/regeln.js": "./js/regeln.js?v=0.4.0-5",
+  "./js/rekorde.js": "./js/rekorde.js?v=0.4.0-5",
+  "./js/satz.js": "./js/satz.js?v=0.4.0-5",
+  "./js/sicherung-sheet.js": "./js/sicherung-sheet.js?v=0.4.0-5",
+  "./js/sicherung.js": "./js/sicherung.js?v=0.4.0-5",
+  "./js/startdaten.js": "./js/startdaten.js?v=0.4.0-5",
+  "./js/statistik.js": "./js/statistik.js?v=0.4.0-5",
+  "./js/tab-events.js": "./js/tab-events.js?v=0.4.0-5",
+  "./js/tabs.js": "./js/tabs.js?v=0.4.0-5",
+  "./js/training.js": "./js/training.js?v=0.4.0-5",
+  "./js/uebungen.js": "./js/uebungen.js?v=0.4.0-5",
+  "./js/ui.js": "./js/ui.js?v=0.4.0-5",
+  "./js/umgebung.js": "./js/umgebung.js?v=0.4.0-5",
+  "./js/verlauf.js": "./js/verlauf.js?v=0.4.0-5",
+  "./js/version.js": "./js/version.js?v=0.4.0-5"
  }
 }</script>
-<script type="module" src="./js/main.js?v=0.4.0-4"></script>
+<script type="module" src="./js/main.js?v=0.4.0-5"></script>
 </head>
 <body>
 
@@ -71,6 +71,20 @@
   <symbol id="t-oben" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3"/><path d="M6.5 13.5V10a2.5 2.5 0 0 1 2.5-2.5h6a2.5 2.5 0 0 1 2.5 2.5v3.5z" fill="currentColor"/><path d="M9.5 15.5v5M14.5 15.5v5" opacity=".35"/></symbol>
   <symbol id="t-unten" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3" opacity=".35"/><path d="M6.5 12V10a2.5 2.5 0 0 1 2.5-2.5h6a2.5 2.5 0 0 1 2.5 2.5v2" opacity=".35"/><path d="M8 13h8v2.5H8z" fill="currentColor"/><path d="M9.5 15v5.5M14.5 15v5.5"/></symbol>
   <symbol id="t-zuhause" viewBox="0 0 24 24"><path d="M4 14.5v5.5a2.5 2.5 0 0 0 2.5 2.5h11a2.5 2.5 0 0 0 2.5-2.5v-5.5"/><path d="M12 3.5L3.5 10.5h17L12 3.5z"/><path d="M10.5 15v4.5h3v-4.5"/></symbol>
+  <!-- Muskelfigur: Schattierung je Muskel und Schatten der Figur (Design, Muskelfigur-Vorschau.html) -->
+  <filter id="muskel-glanz" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+   <feGaussianBlur in="SourceAlpha" stdDeviation="1.8" result="blur"/>
+   <feSpecularLighting in="blur" surfaceScale="5" specularConstant="0.9" specularExponent="24" lighting-color="#ffffff" result="spec"><feDistantLight azimuth="225" elevation="48"/></feSpecularLighting>
+   <feComposite in="spec" in2="SourceAlpha" operator="in" result="specIn"/>
+   <feOffset in="blur" dx="-1.6" dy="-2.2" result="off"/>
+   <feComposite in="SourceAlpha" in2="off" operator="out" result="rim"/>
+   <feFlood flood-color="#1C2A44" flood-opacity="0.38"/>
+   <feComposite in2="rim" operator="in" result="shadow"/>
+   <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="shadow"/></feMerge>
+   <feComposite in2="specIn" operator="arithmetic" k1="0" k2="1" k3="0.55" k4="0" result="lit"/>
+   <feComposite in="lit" in2="SourceAlpha" operator="in"/>
+  </filter>
+  <filter id="figur-schatten" x="-10%" y="-5%" width="120%" height="110%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.12"/></filter>
  </defs>
 </svg>
 

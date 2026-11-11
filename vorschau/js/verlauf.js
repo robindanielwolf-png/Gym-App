@@ -5,6 +5,7 @@ import * as db from './db.js';
 import { registerTabUpdater } from './tab-events.js';
 import { datumKurz, kommaZahl } from './format.js';
 import { istZeit } from './logik.js';
+import { baueTrainingsFigur } from './muskel-figur.js';
 import { h, icon, oeffneSheet, sheetKopf, griff, einmalig, leerHinweis } from './ui.js';
 
 /**
@@ -146,6 +147,8 @@ function oeffneTrainingsDetail(training, daten, artNachMap, onUebungTipp) {
       h('div', { class: 'art-name', text: art.name }),
       h('div', { class: 'training-count', text: `${uebungMap.size} Übung${uebungMap.size !== 1 ? 'en' : ''} · ${eintraege.length} ${eintraege.length === 1 ? 'Satz' : 'Sätze'}` })));
   inhalt.append(titel);
+  const figur = baueTrainingsFigur(daten, training.id);
+  if (figur) inhalt.append(figur);
 
   // Liste der Übungen
   const liste = h('div', { class: 'verlauf-uebung-liste' });

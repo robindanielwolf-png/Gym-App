@@ -1,127 +1,73 @@
-// Muskel-Daten und Hilfsfunktionen für die Zuordnung von Übungen zu Muskeln.
-// Die Muskeldaten stammen aus startdaten.js und sind lesend nur von dort.
+// Muskelgruppen und Punkte-Regel für Muskelfigur und Statistik. Ohne Oberfläche und ohne Datenbank.
+// Regel, Stufen und Testfälle M1–M13: Trainingsexperte, Muskeldaten.md.
+import { MUSKELN, MUSKELN_JE_UEBUNG } from './startdaten.js';
 
-import { MUSKELN, STARTLISTE } from './startdaten.js';
-
-// Nachschlage-Objekt: Muskel-ID → Muskel-Objekt
+export { MUSKELN };
 export const MUSKELN_NACH = new Map(MUSKELN.map((m) => [m.id, m]));
 
-/**
- * Gibt den Namen eines Muskels zurück.
- * @param {string} muskelId - Die ID des Muskels (z.B. 'bizeps')
- * @returns {string} Der Label des Muskels oder undefined wenn nicht gefunden
- */
-export function getMuskelName(muskelId) {
-  return MUSKELN_NACH.get(muskelId)?.label;
+const REFERENZ_ANFANG = { nurWdh: 20, zeit: 60 };
+const GRENZEN = { training: [2.5, 5], tage7: [5, 10] };
+
+const zeit = (iso) => (iso ? Date.parse(iso) : 0);
+const rund = (x) => Math.round(x * 1000) / 1000;
+const schnitt = (werte) => werte.reduce((a, b) => a + b, 0) / werte.length;
+
+/** Muskeln einer Übung als [{ id, rolle: 'haupt' | 'hilf' }]; Cardio und eigene Übungen ohne Auswahl: []. */
+export function muskelnVon(uebung) {
+  const m = MUSKELN_JE_UEBUNG[uebung.id] || uebung.muskeln;
+  if (!m) return [];
+  return [...(m.p || []).map((id) => ({ id, rolle: 'haupt' })), ...(m.s || []).map((id) => ({ id, rolle: 'hilf' }))];
 }
 
 /**
- * Gibt die Kategorie eines Muskels zurück.
- * @param {string} muskelId - Die ID des Muskels
- * @returns {string} Die Kategorie (z.B. 'Arme', 'Beine')
+ * Punkte je Muskel aus den Arbeitssätzen der angegebenen Trainings: Rolle (1 bzw. 0,5) × Satzfaktor.
+ * Satzfaktor 1 bei Gewicht/Zusatzgewicht; bei „Nur Wdh.“ und „Zeit“ min(0,75; 0,5 × Wert ÷ Referenz),
+ * Referenz = Ø Wert pro Arbeitssatz der letzten bis zu 5 Male davor, beim 1.–3. Mal 20 Wdh. bzw. 60 s.
  */
-export function getMuskelKategorie(muskelId) {
-  return MUSKELN_NACH.get(muskelId)?.kategorie;
-}
-
-/**
- * Gibt die Haupt- und Hilfsmuskeln einer Übung als Labels zurück.
- * @param {object} uebung - Die Übung mit muskeln-Array
- * @returns {object} { haupt: ['Name1', 'Name2'], hilf: ['Name3'] }
- */
-export function getMuskelNamen(uebung) {
-  if (!uebung?.muskeln) {
-    return { haupt: [], hilf: [] };
+export function muskelPunkte(daten, trainingIds) {
+  const gesucht = new Set(trainingIds);
+  const beginn = new Map(daten.trainings.map((t) => [t.id, zeit(t.startedAt)]));
+  const uebungen = new Map(daten.uebungen.map((u) => [u.id, u]));
+  const proUebung = new Map();
+  for (const s of daten.saetze) {
+    if (s.aufwaermen || !beginn.has(s.trainingId)) continue;
+    if (!proUebung.has(s.uebungId)) proUebung.set(s.uebungId, new Map());
+    const male = proUebung.get(s.uebungId);
+    if (!male.has(s.trainingId)) male.set(s.trainingId, []);
+    male.get(s.trainingId).push(s);
   }
 
-  const haupt = [];
-  const hilf = [];
-
-  for (const m of uebung.muskeln) {
-    const label = getMuskelName(m.id);
-    if (label) {
-      if (m.rolle === 'haupt') {
-        haupt.push(label);
-      } else if (m.rolle === 'hilf') {
-        hilf.push(label);
+  const punkte = {};
+  for (const [uebungId, male] of proUebung) {
+    const uebung = uebungen.get(uebungId);
+    const muskeln = uebung ? muskelnVon(uebung) : [];
+    if (muskeln.length === 0) continue;
+    const ohneGewicht = uebung.geraet === 'kg' && (uebung.modus === 'nurWdh' || uebung.modus === 'zeit');
+    const reihe = [...male.keys()].sort((a, b) => beginn.get(a) - beginn.get(b));
+    reihe.forEach((trainingId, i) => {
+      if (!gesucht.has(trainingId)) return;
+      let referenz = REFERENZ_ANFANG[uebung.modus] || 20;
+      if (ohneGewicht && i >= 3) referenz = schnitt(reihe.slice(Math.max(0, i - 5), i).flatMap((t) => male.get(t).map((s) => s.wdh)));
+      for (const satz of male.get(trainingId)) {
+        const faktor = ohneGewicht ? Math.min(0.75, (0.5 * satz.wdh) / referenz) : 1;
+        for (const { id, rolle } of muskeln) punkte[id] = (punkte[id] || 0) + (rolle === 'haupt' ? 1 : 0.5) * faktor;
       }
-    }
+    });
   }
-
-  return { haupt, hilf };
+  for (const id of Object.keys(punkte)) punkte[id] = rund(punkte[id]);
+  return punkte;
 }
 
-/**
- * Gibt alle Übungen zurück, die einen bestimmten Muskel trainieren (egal ob haupt oder hilf).
- * @param {array} daten - Die Übungs-Daten (z.B. STARTLISTE oder aus IndexedDB)
- * @param {string} muskelId - Die Muskel-ID
- * @returns {array} Array von Übungen, die diesen Muskel trainieren
- */
-export function getUebungenPerMuskel(daten, muskelId) {
-  if (!Array.isArray(daten)) {
-    return [];
-  }
-
-  return daten.filter((u) => {
-    if (!u.muskeln) return false;
-    return u.muskeln.some((m) => m.id === muskelId);
-  });
+/** Farbstufe 0–3; zeitraum 'training' (ein Training) oder 'tage7' (Startseite). */
+export function muskelStufe(punkte, zeitraum) {
+  if (!(punkte > 0)) return 0;
+  const [eins, zwei] = GRENZEN[zeitraum];
+  if (punkte <= eins) return 1;
+  return punkte <= zwei ? 2 : 3;
 }
 
-/**
- * Gibt alle Übungen zurück, die einen Muskel als Hauptmuskel trainieren.
- * @param {array} daten - Die Übungs-Daten
- * @param {string} muskelId - Die Muskel-ID
- * @returns {array} Array von Übungen mit diesem Muskel als Hauptmuskel
- */
-export function getUebungenHauptmuskel(daten, muskelId) {
-  if (!Array.isArray(daten)) {
-    return [];
-  }
-
-  return daten.filter((u) => {
-    if (!u.muskeln) return false;
-    return u.muskeln.some((m) => m.id === muskelId && m.rolle === 'haupt');
-  });
-}
-
-/**
- * Gibt alle Übungen nach Muskel-Kategorie gruppiert zurück.
- * Nützlich für die Muskel-Karte.
- * @param {array} daten - Die Übungs-Daten
- * @returns {object} { 'Beine': [uebungen...], 'Arme': [...], ... }
- */
-export function getUebungenNachMuskelKategorie(daten) {
-  const result = {};
-
-  for (const muskel of MUSKELN) {
-    const uebungen = getUebungenPerMuskel(daten, muskel.id);
-    if (uebungen.length > 0) {
-      if (!result[muskel.kategorie]) {
-        result[muskel.kategorie] = [];
-      }
-      result[muskel.kategorie].push(...uebungen);
-    }
-  }
-
-  return result;
-}
-
-/**
- * Gibt an, welche Muskeln in den Daten trainiert werden.
- * @param {array} daten - Die Übungs-Daten
- * @returns {array} Array von Muskel-IDs, die mindestens eine Übung haben
- */
-export function getTrainierteMuskeln(daten) {
-  const trainiert = new Set();
-
-  for (const u of (Array.isArray(daten) ? daten : [])) {
-    if (u.muskeln) {
-      for (const m of u.muskeln) {
-        trainiert.add(m.id);
-      }
-    }
-  }
-
-  return Array.from(trainiert);
+/** Trainings, die heute oder in den tage − 1 Kalendertagen davor begonnen haben. */
+export function trainingsDerLetztenTage(daten, tage, jetzt = new Date()) {
+  const ab = new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate() - (tage - 1)).getTime();
+  return daten.trainings.filter((t) => zeit(t.startedAt) >= ab).map((t) => t.id);
 }

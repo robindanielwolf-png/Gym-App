@@ -341,3 +341,26 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .stat-status-rot{color:var(--danger)}
 .statistik-info{margin-top:16px;padding:12px;background:var(--fill);border-radius:var(--r-card);font-size:15px;line-height:20px;color:var(--text-2)}
 .statistik-info p{margin:0}
+
+/* Muskelfigur (dunkle Variante, Design 11.11.2026) */
+.figur-paar{display:flex;justify-content:center;gap:12px}
+.figur-svg{width:46%;max-width:170px;height:auto;overflow:visible;filter:url(#figur-schatten)}
+.figur.klein .figur-svg{width:84px}
+.figur-umriss{fill:none;stroke:#C7C7CC;stroke-width:2;vector-effect:non-scaling-stroke}
+.figur-muskeln{filter:url(#muskel-glanz)}
+.figur-m{transition:fill .25s ease-out}
+.figur-gesicht{fill:#bebebe}
+.figur-m.s0,.figur-kaestchen.s0{fill:#3f3f3f;background:#3f3f3f}
+.figur-m.s1,.figur-kaestchen.s1{fill:#9CC9FF;background:#9CC9FF}
+.figur-m.s2,.figur-kaestchen.s2{fill:#4DA3FF;background:#4DA3FF}
+.figur-m.s3,.figur-kaestchen.s3{fill:#007AFF;background:#007AFF}
+.figur-legende{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:13px;line-height:18px;color:var(--text-2)}
+.figur-kaestchen{display:inline-block;width:14px;height:14px;border-radius:4px;flex:none}
+.muskel-start{display:flex;align-items:center;justify-content:center;position:relative;width:calc(100% - 32px);padding:16px 32px;border:0;font:inherit;color:inherit}
+.muskel-start .chev{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-3)}
+.muskel-start:active{background:var(--fill)}
+.figur-sheet-inhalt{padding-top:8px}
+.figur-im-sheet{padding:12px 0 4px}
+.muskel-zeile .figur-kaestchen{margin-right:4px}
+.sheet-unten{flex:none;padding:16px 0 max(16px,env(safe-area-inset-bottom))}
+@media (prefers-reduced-motion:reduce){.figur-m{transition:none}}

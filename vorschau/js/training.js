@@ -9,7 +9,8 @@ import {
 } from './logik.js';
 import { alsNaechstesDran, neueRekorde, rekordHinweis } from './regeln.js';
 import { oeffneSatz } from './satz.js';
-import { setzeArten } from './tabs.js';
+import { setzeArten, setzeMuskelKarte } from './tabs.js';
+import { baueStartKarte, zeigeTrainingsUebersicht } from './muskel-figur.js';
 import { FEHLER_F2, oeffneHinzufuegen } from './uebungen.js';
 import {
   einmalig, griff, h, icon, kachel, leerHinweis, oeffneSheet, randWischen, schliesseAlles, sheetKopf, zeigeAlert, zeigeHinweis
@@ -154,6 +155,7 @@ function zeichneStart() {
   const naechste = laufend ? null : alsNaechstesDran(sortierteArten(), zuletzt);
   setzeArten(sortierteArten(), zuletzt, artAntippen, lauft || null,
     naechste && { ...naechste, beiTipp: () => oeffneVorschau(naechste.art) });
+  setzeMuskelKarte(baueStartKarte(daten));
 }
 
 function artAntippen(art) {
@@ -429,6 +431,7 @@ const beenden = einmalig(async () => {
     await frageUndVerwerfe();
     return;
   }
+  const trainingId = lauf.training.id;
   try {
     await db.speichereTraining({ ...lauf.training, endedAt: new Date().toISOString() });
   } catch {
@@ -437,6 +440,7 @@ const beenden = einmalig(async () => {
   }
   merkeAnsicht('start');
   await ladeUndZeige({ ziel: 'start' });
+  zeigeTrainingsUebersicht(daten, trainingId);
 });
 
 function artAendern() {

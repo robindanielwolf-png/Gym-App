@@ -1,8 +1,7 @@
 // Statistik-Views für die Trainingsübersicht nach Muskelgruppe/Woche.
 import * as db from './db.js';
 import { h, leerHinweis } from './ui.js';
-import { saetzeProMuskelgruppe } from './logik.js';
-import { MUSKELN_NACH } from './muskeln.js';
+import { MUSKELN, muskelPunkte, trainingsDerLetztenTage } from './muskeln.js';
 import { registerTabUpdater } from './tab-events.js';
 
 // Zeitraum-Konfiguration: tageAnzahl für verschiedene Filter
@@ -42,53 +41,20 @@ function getStatusLabel(saetze, tageAnzahl) {
 }
 
 /**
- * Sortiert Muskelgruppen nach Kategorie (Reihenfolge: Beine, Brust, Rücken, Arme, Schultern, Bauch).
- */
-function sortierMuskelgruppen(kategorieMap) {
-  const reihenfolge = ['Beine', 'Brust', 'Rücken', 'Arme', 'Schultern', 'Bauch'];
-  const result = [];
-
-  for (const kategorie of reihenfolge) {
-    if (kategorieMap.has(kategorie)) {
-      result.push({ kategorie, saetze: kategorieMap.get(kategorie) });
-    }
-  }
-
-  // Übrige Kategorien hinzufügen (falls neue hinzukommen)
-  for (const [kategorie, saetze] of kategorieMap) {
-    if (!reihenfolge.includes(kategorie)) {
-      result.push({ kategorie, saetze });
-    }
-  }
-
-  return result;
-}
-
-/**
  * Erstellt die Statistik-View mit Balkendiagramm und Status.
  * onZeitraumChange: Callback, wenn ein neuer Zeitraum gewählt wird
  */
 export function baueSatistikView(daten, zeitraumId = 'woche', onZeitraumChange = null) {
   const zeitraum = ZEITRAEUME.find((z) => z.id === zeitraumId) || ZEITRAEUME[1];
 
-  // Berechne Sätze pro Muskelgruppe
-  const proMuskel = saetzeProMuskelgruppe(daten, zeitraum.tage);
-
-  // Gruppiere nach Kategorie
-  const kategorieMap = new Map();
-  for (const [muskelId, saetze] of Object.entries(proMuskel)) {
-    const muskel = MUSKELN_NACH.get(muskelId);
-    if (!muskel) continue;
-
-    const kategorie = muskel.kategorie;
-    if (!kategorieMap.has(kategorie)) {
-      kategorieMap.set(kategorie, 0);
-    }
-    kategorieMap.set(kategorie, kategorieMap.get(kategorie) + saetze);
-  }
-
-  // Sortiere Kategorien
-  const sortiert = sortierMuskelgruppen(kategorieMap);
+  // Gewichtete Sätze je Muskelgruppe, gleiche Rechnung wie die Muskelfigur
+  const trainingIds = zeitraum.id === 'alles'
+    ? daten.trainings.map((t) => t.id)
+    : trainingsDerLetztenTage(daten, zeitraum.tage);
+  const proMuskel = muskelPunkte(daten, trainingIds);
+  const sortiert = MUSKELN.filter((m) => proMuskel[m.id] > 0)
+    .map((m) => ({ kategorie: m.label, saetze: proMuskel[m.id] }))
+    .sort((a, b) => b.saetze - a.saetze);
 
   // Finde Max für Balken-Skalierung
   const maxSaetze = Math.max(...sortiert.map((g) => g.saetze), 1);
