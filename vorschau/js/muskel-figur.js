@@ -1,11 +1,12 @@
-// Muskelfigur vorne/hinten (dunkle Variante, Design 11.11.2026): Startseite „Letzte 7 Tage“,
-// großes Sheet mit Liste und Übersicht nach „Training beenden“.
-import { h, icon, oeffneSheet, sheetKopf, griff } from './ui.js';
+// Muskelfigur vorne/hinten (dunkle Variante, Design 11.11.2026): Tab „Start“ (letzte 7 Tage),
+// Verlauf → Tag und Übersicht nach „Training beenden“.
+import * as db from './db.js';
+import { h, oeffneSheet, sheetKopf, griff } from './ui.js';
+import { registerTabUpdater } from './tab-events.js';
 import { FIGUR_VORNE, FIGUR_HINTEN } from './muskel-figur-pfade.js';
 import { MUSKELN, MUSKELN_NACH, muskelPunkte, muskelStufe, trainingsDerLetztenTage } from './muskeln.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const ZEITRAUM_TEXT = { tage7: 'Letzte 7 Tage', training: 'Dieses Training' };
 
 const zahl = (x) => String(Math.round(x * 10) / 10).replace('.', ',');
 
@@ -34,13 +35,13 @@ function legende() {
     h('span', { text: 'viel' }));
 }
 
-/** Figur vorne + hinten nebeneinander; klein für die Startseite, sonst mit Legende. */
-export function baueMuskelFigur(punkte, zeitraum, { klein = false } = {}) {
-  return h('div', { class: `figur${klein ? ' klein' : ''}` },
+/** Figur vorne + hinten nebeneinander mit Legende (Sheets). */
+function baueMuskelFigur(punkte, zeitraum) {
+  return h('div', { class: 'figur' },
     h('div', { class: 'figur-paar' },
       seite(FIGUR_VORNE, punkte, zeitraum, 'Muskeln vorne'),
       seite(FIGUR_HINTEN, punkte, zeitraum, 'Muskeln hinten')),
-    !klein && legende());
+    legende());
 }
 
 /** Liste der trainierten Muskelgruppen mit gewichteter Satzzahl, größte zuerst. */
@@ -61,16 +62,37 @@ function sheetInhalt(punkte, zeitraum) {
     h('p', { class: 'foot-links', text: 'Hauptmuskel zählt 1, mitarbeitender Muskel 0,5 je Arbeitssatz. Aufwärmsätze und Cardio zählen nicht.' }));
 }
 
-/** Karte für die Startseite (unter der Artenliste); null, solange es noch keine Daten gibt. */
-export function baueStartKarte(daten) {
-  const punkte = muskelPunkte(daten, trainingsDerLetztenTage(daten, 7));
-  return h('button', {
-    class: 'list muskel-start', type: 'button', 'aria-label': 'Muskeln der letzten 7 Tage ansehen',
-    onclick: () => oeffneSheet({
-      klasse: 'figur-sheet',
-      baue: (zu) => [griff(), sheetKopf(ZEITRAUM_TEXT.tage7, zu), sheetInhalt(punkte, 'tage7')]
-    })
-  }, baueMuskelFigur(punkte, 'tage7', { klein: true }), icon('i-chev', 'chev'));
+/**
+ * Tab „Start“: Figur vorne groß in der Mitte, beim Scrollen die Rückseite, darunter die Liste.
+ * Lädt beim Öffnen und nach Datenänderungen; liefert die Aktualisierung für den App-Start.
+ */
+export function initStartseite() {
+  const ansicht = document.getElementById('start-ansicht');
+  const inhalt = h('div');
+  ansicht.replaceChildren(
+    h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Muskeln' })),
+    h('div', { class: 'start-unterzeile', text: 'Letzte 7 Tage' }),
+    inhalt);
+  const aktualisiere = async () => {
+    try {
+      const daten = await db.leseDaten();
+      const punkte = muskelPunkte(daten, trainingsDerLetztenTage(daten, 7));
+      inhalt.replaceChildren(
+        h('div', { class: 'start-figur' }, seite(FIGUR_VORNE, punkte, 'tage7', 'Muskeln vorne'),
+          h('div', { class: 'start-seite', text: 'Vorne' })),
+        h('div', { class: 'start-figur' }, seite(FIGUR_HINTEN, punkte, 'tage7', 'Muskeln hinten'),
+          h('div', { class: 'start-seite', text: 'Hinten' })),
+        legende(),
+        h('div', { class: 'section-h oben-16', text: 'Sätze pro Muskelgruppe' }),
+        h('div', { class: 'start-liste' }, muskelListe(punkte, 'tage7')),
+        h('p', { class: 'foot-links', text: 'Hauptmuskel zählt 1, mitarbeitender Muskel 0,5 je Arbeitssatz. Aufwärmsätze und Cardio zählen nicht.' }),
+        h('div', { class: 'abstand-16' }));
+    } catch (e) {
+      console.error('Startseite konnte nicht geladen werden:', e);
+    }
+  };
+  registerTabUpdater('start', aktualisiere);
+  return aktualisiere;
 }
 
 /** Figur für ein einzelnes Training (Verlauf → Tag). */
@@ -86,7 +108,7 @@ export function zeigeTrainingsUebersicht(daten, trainingId) {
   if (Object.keys(punkte).length === 0) return;
   oeffneSheet({
     klasse: 'figur-sheet',
-    baue: (zu) => [griff(), sheetKopf(ZEITRAUM_TEXT.training, zu), sheetInhalt(punkte, 'training'),
+    baue: (zu) => [griff(), sheetKopf('Dieses Training', zu), sheetInhalt(punkte, 'training'),
       h('div', { class: 'sheet-unten' }, h('button', { class: 'btn primary', type: 'button', text: 'Fertig', onclick: zu }))]
   });
 }

@@ -85,7 +85,7 @@ button.row:active{background:var(--fill)}
 .empty-liste{padding:48px 16px}
 
 .tabbar{position:absolute;left:0;right:0;bottom:0;height:var(--tab-hoehe);background:rgba(249,249,249,.94);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid var(--separator);display:flex;justify-content:space-around;padding-top:3px}
-.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;line-height:12px;font-weight:500;color:#8E8E93;width:96px;height:45px;justify-content:center}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;line-height:12px;font-weight:500;color:#8E8E93;flex:1;max-width:96px;height:45px;justify-content:center}
 .tab.on{color:var(--accent)}
 .tab svg.i{width:26px;height:26px}
 
@@ -345,7 +345,6 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 /* Muskelfigur (dunkle Variante, Design 11.11.2026) */
 .figur-paar{display:flex;justify-content:center;gap:12px}
 .figur-svg{width:46%;max-width:170px;height:auto;overflow:visible;filter:url(#figur-schatten)}
-.figur.klein .figur-svg{width:84px}
 .figur-umriss{fill:none;stroke:#C7C7CC;stroke-width:2;vector-effect:non-scaling-stroke}
 .figur-muskeln{filter:url(#muskel-glanz)}
 .figur-m{transition:fill .25s ease-out}
@@ -356,11 +355,15 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .figur-m.s3,.figur-kaestchen.s3{fill:#007AFF;background:#007AFF}
 .figur-legende{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:13px;line-height:18px;color:var(--text-2)}
 .figur-kaestchen{display:inline-block;width:14px;height:14px;border-radius:4px;flex:none}
-.muskel-start{display:flex;align-items:center;justify-content:center;position:relative;width:calc(100% - 32px);padding:16px 32px;border:0;font:inherit;color:inherit}
-.muskel-start .chev{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-3)}
-.muskel-start:active{background:var(--fill)}
 .figur-sheet-inhalt{padding-top:8px}
 .figur-im-sheet{padding:12px 0 4px}
 .muskel-zeile .figur-kaestchen{margin-right:4px}
 .sheet-unten{flex:none;padding:16px 0 max(16px,env(safe-area-inset-bottom))}
 @media (prefers-reduced-motion:reduce){.figur-m{transition:none}}
+/* Tab Start: Figur vorne groß, Rückseite beim Scrollen */
+.start-unterzeile{padding:0 16px;font-size:15px;line-height:20px;color:var(--text-2)}
+.start-figur{display:flex;flex-direction:column;align-items:center;padding:12px 16px 4px}
+.start-figur .figur-svg{width:min(70vw,calc((100svh - 260px) / 2));max-width:280px}
+.start-seite{margin-top:8px;font-size:13px;line-height:18px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.3px}
+.start-liste{padding:0 16px}
+.start-liste .list{margin-top:0;background:var(--surface)}

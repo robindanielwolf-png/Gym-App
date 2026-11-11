@@ -9,8 +9,8 @@ import {
 } from './logik.js';
 import { alsNaechstesDran, neueRekorde, rekordHinweis } from './regeln.js';
 import { oeffneSatz } from './satz.js';
-import { setzeArten, setzeMuskelKarte } from './tabs.js';
-import { baueStartKarte, zeigeTrainingsUebersicht } from './muskel-figur.js';
+import { setzeArten } from './tabs.js';
+import { zeigeTrainingsUebersicht } from './muskel-figur.js';
 import { FEHLER_F2, oeffneHinzufuegen } from './uebungen.js';
 import {
   einmalig, griff, h, icon, kachel, leerHinweis, oeffneSheet, randWischen, schliesseAlles, sheetKopf, zeigeAlert, zeigeHinweis
@@ -155,7 +155,6 @@ function zeichneStart() {
   const naechste = laufend ? null : alsNaechstesDran(sortierteArten(), zuletzt);
   setzeArten(sortierteArten(), zuletzt, artAntippen, lauft || null,
     naechste && { ...naechste, beiTipp: () => oeffneVorschau(naechste.art) });
-  setzeMuskelKarte(baueStartKarte(daten));
 }
 
 function artAntippen(art) {

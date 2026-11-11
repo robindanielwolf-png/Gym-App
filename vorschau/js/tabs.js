@@ -3,6 +3,7 @@ import { h, icon, kachel, leerHinweis } from './ui.js';
 import { oeffneSicherung } from './sicherung-sheet.js';
 
 const TABS = [
+  { id: 'start', label: 'Start', iconName: 'i-person' },
   { id: 'training', label: 'Training', iconName: 'i-dumbbell' },
   { id: 'verlauf', label: 'Verlauf', iconName: 'i-calendar' },
   { id: 'statistik', label: 'Statistik', iconName: 'i-chart' },
@@ -13,8 +14,6 @@ const artenListe = h('div', { class: 'list', id: 'arten-liste' });
 const fortsetzen = h('div', { class: 'list resume', id: 'fortsetzen', hidden: true });
 const naechsteKarte = h('div', { class: 'next', id: 'als-naechstes', hidden: true });
 const artenTitel = h('div', { class: 'section-h oben-16', text: 'Trainingsart wählen' });
-const muskelTitel = h('div', { class: 'section-h oben-16', text: 'Muskeln · letzte 7 Tage' });
-const muskelKarte = h('div');
 
 // Callbacks pro Tab-ID, die aufgerufen werden, wenn der Tab aktiviert wird (Aktualisierung beim Öffnen)
 const tabAktivierungsCallbacks = new Map();
@@ -29,14 +28,7 @@ function ansichtTraining() {
     naechsteKarte,
     artenTitel,
     artenListe,
-    muskelTitel,
-    muskelKarte,
     h('div', { class: 'abstand-16' }));
-}
-
-/** Startseite: Muskelfigur „Letzte 7 Tage“ unter der Artenliste. */
-export function setzeMuskelKarte(karte) {
-  muskelKarte.replaceChildren(karte);
 }
 
 /**
@@ -100,6 +92,7 @@ export function registerTabActivation(tabId, callback) {
 
 export function baueTabs(wurzel) {
   const ansichten = {
+    start: h('div', { class: 'view start-view', hidden: true, id: 'start-ansicht' }),
     training: ansichtTraining(),
     verlauf: h('div', { class: 'view verlauf-view', hidden: true, id: 'verlauf-ansicht' }),
     statistik: h('div', { class: 'view', hidden: true, id: 'statistik-ansicht' }),
@@ -133,5 +126,5 @@ export function baueTabs(wurzel) {
   }
 
   wurzel.append(...Object.values(ansichten), h('nav', { class: 'tabbar' }, Object.values(knoepfe)));
-  zeige('training');
+  zeige('start');
 }
