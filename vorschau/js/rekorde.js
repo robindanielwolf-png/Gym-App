@@ -179,6 +179,8 @@ function baueRekordeZeile(uebung, rek) {
     } else {
       texte.push('–');
     }
+  } else if (rek.art === 'zeit') {
+    texte.push(rek.laengsteZeit !== null ? `${rek.laengsteZeit} s` : '–');
   } else if (rek.art === 'zusatz') {
     // Körpergewicht mit Zusatz: zwei Rekorde
     if (rek.schwerstesZusatz) {
@@ -221,7 +223,7 @@ function baueRekordeZeile(uebung, rek) {
  * Baut die Körpergewicht-Zeile mit Edit-Funktionalität.
  */
 function baueKoerpergewichtZeile() {
-  const kgEntry = daten.koerpergewicht.find((e) => e.id === 'aktuell');
+  const kgEntry = (daten.koerpergewicht || [])[0];
   const kg = kgEntry?.kg || null;
 
   const zeile = h('button', {

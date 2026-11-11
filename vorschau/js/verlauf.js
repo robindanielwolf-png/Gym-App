@@ -3,8 +3,9 @@
 
 import * as db from './db.js';
 import { registerTabUpdater } from './tab-events.js';
-import { datumKurz } from './format.js';
-import { h, icon, oeffneSheet, sheetKopf, einmalig } from './ui.js';
+import { datumKurz, kommaZahl } from './format.js';
+import { istZeit } from './logik.js';
+import { h, icon, oeffneSheet, sheetKopf, griff, einmalig, leerHinweis } from './ui.js';
 
 /**
  * Hilfsfunktion: Gibt Trainingsarten-Map (id → trainingsart) zurück.
@@ -21,9 +22,15 @@ function artNach(daten) {
  */
 function trainingNachDatum(daten) {
   const map = new Map();
-  for (const training of daten.trainings) {
-    // Extrahiere nur das Datum aus startedAt (ISO-8601)
-    const dateStr = training.startedAt.slice(0, 10);
+  // Trainings ohne Sätze (z. B. gerade gestartet) zeigen nichts Sinnvolles im Verlauf
+  const mitEintraegen = new Set([...daten.saetze, ...daten.cardio].map((e) => e.trainingId));
+  const sortiert = [...daten.trainings].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+  for (const training of sortiert) {
+    if (!mitEintraegen.has(training.id)) continue;
+    // Lokales Datum (nicht UTC), sonst landet ein Training kurz nach Mitternacht am Vortag
+    if (!training.startedAt) continue;
+    const d = new Date(training.startedAt);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!map.has(dateStr)) map.set(dateStr, []);
     map.get(dateStr).push(training);
   }
@@ -137,7 +144,7 @@ function oeffneTrainingsDetail(training, daten, artNachMap, onUebungTipp) {
     h('div', { class: 'title-icon' }, icon(art.icon)),
     h('div', { class: 'title-text' },
       h('div', { class: 'art-name', text: art.name }),
-      h('div', { class: 'training-count', text: `${uebungMap.size} Übung${uebungMap.size !== 1 ? 'en'} · ${eintraege.length} Sätze` })));
+      h('div', { class: 'training-count', text: `${uebungMap.size} Übung${uebungMap.size !== 1 ? 'en' : ''} · ${eintraege.length} ${eintraege.length === 1 ? 'Satz' : 'Sätze'}` })));
   inhalt.append(titel);
 
   // Liste der Übungen
@@ -151,13 +158,12 @@ function oeffneTrainingsDetail(training, daten, artNachMap, onUebungTipp) {
     const saetzeText = saetze.map(satz => {
       if (satz.dauerMin !== undefined) {
         // Cardio
-        return `${satz.dauerMin} min`;
-      } else {
-        // Kraft
-        const gewicht = satz.gewicht !== undefined ? `${satz.gewicht} kg` : '–';
-        const wdh = satz.wdh ? `${satz.wdh}×` : '–';
-        return `${gewicht} ${wdh}`;
+        return satz.km ? `${satz.dauerMin} min · ${kommaZahl(satz.km)} km` : `${satz.dauerMin} min`;
       }
+      if (istZeit(uebung)) return `${satz.wdh} s`;
+      // Kraft / nur Wdh.
+      if (typeof satz.gewicht !== 'number') return `${satz.wdh}×`;
+      return `${kommaZahl(satz.gewicht)} kg × ${satz.wdh}`;
     }).join(', ');
 
     const uebungEl = h('div', {
@@ -177,9 +183,8 @@ function oeffneTrainingsDetail(training, daten, artNachMap, onUebungTipp) {
 
   // Öffne Sheet
   oeffneSheet({
-    kopf: sheetKopf({ titel: datumKurz(training.startedAt) }),
-    inhalt: inhalt,
-    klasse: 'verlauf-sheet'
+    klasse: 'verlauf-sheet',
+    baue: (zu) => [griff(), sheetKopf(datumKurz(training.startedAt), zu), inhalt]
   });
 }
 
@@ -206,18 +211,20 @@ export function initVerlauf() {
         type: 'button',
         'aria-label': 'Vorheriger Monat',
         onclick: () => wechselMonat(-1)
-      }, h('span', { text: '<' })),
+      }, icon('i-back', 's16')),
       h('div', { class: 'monat-anzeige', id: 'monat-anzeige' }),
       h('button', {
         class: 'btn-nav',
         type: 'button',
         'aria-label': 'Nächster Monat',
         onclick: () => wechselMonat(1)
-      }, h('span', { text: '>' }))));
+      }, icon('i-chev', 's16'))));
 
   const kalenderContainer = h('div', { class: 'kalender-container' });
+  const leer = h('div', { class: 'empty-wrap', hidden: true },
+    leerHinweis({ iconName: 'i-calendar', headline: 'Noch kein Training', subhead: 'Deine Trainings erscheinen hier im Kalender.' }));
 
-  ansicht.append(kopf, kalenderContainer);
+  ansicht.replaceChildren(kopf, kalenderContainer, leer);
 
   /**
    * Aktualisiert die Kalender-Anzeige.
@@ -234,6 +241,8 @@ export function initVerlauf() {
     const monate = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
                     'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
     document.getElementById('monat-anzeige').textContent = `${monate[aktuellMonat - 1]} ${aktuellJahr}`;
+
+    leer.hidden = trainingMap.size > 0;
 
     // Kalender-Tage
     schreibeKalenderTage(kalenderContainer, aktuellJahr, aktuellMonat, trainingMap, artNachMap,
