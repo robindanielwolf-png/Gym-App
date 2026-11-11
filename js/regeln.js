@@ -8,7 +8,6 @@ const istCardio = (u) => u.typ === 'cardio';
 const istKoerpergewicht = (u) => u.geraet === 'kg';
 const istNurWdh = (u) => istKoerpergewicht(u) && u.modus === 'nurWdh';
 const istZusatz = (u) => istKoerpergewicht(u) && u.modus === 'zusatz';
-const istZeit = (u) => istKoerpergewicht(u) && u.modus === 'zeit';
 
 const arbeit = (saetze) => (saetze || []).filter((s) => !s.aufwaermen);
 
@@ -43,10 +42,6 @@ export function zielWdh(uebung, saetzeLetztesMal) {
 export function vorschlag(uebung, eintraegeLetztesMal) {
   const e = eintraegeLetztesMal || [];
   if (istCardio(uebung)) return e.length ? { art: 'cardio', wert: e.at(-1).dauerMin, diff: 0 } : { art: 'erstes', wert: null, diff: 0 };
-  if (istZeit(uebung)) {
-    const s = arbeit(e);
-    return s.length ? { art: 'zeit', wert: s.at(-1).wdh, diff: 0 } : { art: 'erstes', wert: null, diff: 0 };
-  }
   if (istNurWdh(uebung)) {
     const ziel = zielWdh(uebung, e);
     return ziel === null ? { art: 'erstes', wert: null, diff: 0 } : { art: 'wdh', wert: ziel, diff: 0 };
@@ -104,10 +99,6 @@ export function rekorde(uebung, eintraege) {
   const mitGewicht = s.filter((x) => typeof x.gewicht === 'number');
   const schwerster = (liste) => liste.reduce((best, x) => (!best || x.gewicht > best.gewicht
     || (x.gewicht === best.gewicht && x.wdh > best.wdh) ? { gewicht: x.gewicht, wdh: x.wdh } : best), null);
-  if (istZeit(uebung)) {
-    const zeiten = s.filter((x) => typeof x.wdh === 'number');
-    return { art: 'zeit', laengsteZeit: zeiten.length ? Math.max(...zeiten.map((x) => x.wdh)) : null };
-  }
   if (istZusatz(uebung)) {
     const ohne = mitGewicht.filter((x) => x.gewicht === 0);
     return {
@@ -123,13 +114,6 @@ export function rekorde(uebung, eintraege) {
   }
   return { art: 'gewicht', schwerstes: schwerster(mitGewicht.filter((x) => x.wdh >= 6)), einerMax: best };
 }
-
-const formatZeit = (sekunden) => {
-  if (sekunden < 60) return `${sekunden} Sek.`;
-  const min = Math.floor(sekunden / 60);
-  const sek = sekunden % 60;
-  return `${min}:${String(sek).padStart(2, '0')}`;
-};
 
 const zahl = (w) => String(w).replace('.', ',');
 
@@ -149,8 +133,6 @@ export function neueRekorde(uebung, vorher, neu) {
     if (groesser(a.laengsteStrecke, b.laengsteStrecke)) liste.push({ lang: `Längste Strecke: ${zahl(b.laengsteStrecke)} km`, kurz: `${zahl(b.laengsteStrecke)} km` });
   } else if (b.art === 'wdh') {
     if (groesser(a.meisteWdh, b.meisteWdh)) liste.push({ lang: `Meiste Wdh.: ${b.meisteWdh}`, kurz: `${b.meisteWdh} Wdh.` });
-  } else if (b.art === 'zeit') {
-    if (groesser(a.laengsteZeit, b.laengsteZeit)) liste.push({ lang: `Längste Zeit: ${formatZeit(b.laengsteZeit)}`, kurz: `${formatZeit(b.laengsteZeit)}` });
   } else if (b.art === 'zusatz') {
     if (groesser(a.meisteWdhOhne, b.meisteWdhOhne)) liste.push({ lang: `Meiste Wdh. ohne Zusatz: ${b.meisteWdhOhne}`, kurz: `${b.meisteWdhOhne} Wdh. ohne Zusatz` });
     if (b.schwerstesZusatz && groesser(a.schwerstesZusatz?.gewicht ?? null, b.schwerstesZusatz.gewicht)) {

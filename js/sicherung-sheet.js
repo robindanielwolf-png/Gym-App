@@ -1,9 +1,6 @@
-// Sheet 10: Export, Import und „Import rückgängig machen”.
+// Sheet 10: Export, Import und „Import rückgängig machen“.
 import * as db from './db.js';
-import {
-  baueSicherung, dateiname, istLeer, pruefeSicherung, zaehle,
-  pruefeSicherungsErinnerung, resetSicherungsErinnerung, setzErinnerungNieMehr, setzErinnerungSpaeter
-} from './sicherung.js';
+import { baueSicherung, dateiname, istLeer, pruefeSicherung, zaehle } from './sicherung.js';
 import { datumLang, datumZeit, inhaltText, letzteSicherungText } from './format.js';
 import { einmalig, h, icon, oeffneSheet, sheetKopf, griff, zeigeAlert, zeigeHinweis } from './ui.js';
 
@@ -71,8 +68,6 @@ function exportiere() {
     if (ergebnis === 'fertig') {
       try {
         await db.setzeLetzteSicherung(sicherung.exportiertAm);
-        // Nach erfolgreichem Export: Erinnerung resetten
-        await resetSicherungsErinnerung(stand.daten);
         await ladeStand();
       } catch { /* Datei ist geschrieben, nur die Anzeige fehlt */ }
     }
@@ -194,55 +189,6 @@ function dateiFeld() {
   });
   document.body.append(feld);
   return feld;
-}
-
-/**
- * Zeigt die Sicherungs-Erinnerung an, wenn diese nötig ist.
- * Wird beim App-Start aufgerufen.
- */
-export async function zeigeSicherungsErinnerung() {
-  try {
-    // Lade die Daten und prüfe, ob eine Erinnerung angezeigt werden sollte
-    const stand = await db.leseStand();
-    const pruefung = await pruefeSicherungsErinnerung(stand.daten);
-
-    if (!pruefung || !pruefung.sollZeigen) {
-      return;
-    }
-
-    // Baue den Text der Erinnerung
-    let erinnerungsText = '';
-    if (pruefung.tagenSeither === -1) {
-      erinnerungsText = 'Du hast noch nie Trainingsdaten exportiert. Sichere sie regelmäßig, um Datenverlust zu vermeiden.';
-    } else {
-      const zeit = pruefung.tagenSeither === 1 ? 'einen Tag' : `${pruefung.tagenSeither} Tagen`;
-      erinnerungsText = `Es sind ${pruefung.trainingsNeu} neue Trainings seit deinem letzten Export (vor ${zeit}).`;
-    }
-
-    // Zeige das Modal
-    const wahl = await zeigeAlert({
-      titel: '🔒 Trainingsdaten sichern?',
-      text: erinnerungsText,
-      knoepfe: [
-        { id: 'jetzt', label: 'Jetzt exportieren', fett: true },
-        { id: 'spaeter', label: 'In 7 Tagen erinnern' },
-        { id: 'nie', label: 'Nicht mehr' }
-      ]
-    });
-
-    if (wahl === 'jetzt') {
-      // Öffne das Sicherungs-Sheet und exportiere
-      await oeffneSicherung();
-    } else if (wahl === 'spaeter') {
-      // Setzt die Erinnerung auf später
-      await setzErinnerungSpaeter(stand.daten);
-    } else if (wahl === 'nie') {
-      // Setzt "Nie mehr"
-      await setzErinnerungNieMehr();
-    }
-  } catch {
-    // Fehler beim Prüfen ignorieren, die App lädt trotzdem
-  }
 }
 
 export const oeffneSicherung = einmalig(async () => {
