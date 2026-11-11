@@ -28,6 +28,7 @@ const META_ENTWURF_UEBUNG = 'entwurfUebung';
 const META_ENTWURF_SATZ = 'entwurfSatz';
 const META_ANSICHT = 'letzteAnsicht';
 const META_KG_GEFRAGT = 'koerpergewichtGefragt';
+const META_VERSION = 'geseheneVersion';
 
 export const KOERPERGEWICHT_ID = 'aktuell';
 
@@ -303,7 +304,7 @@ export function speichereTraining(training) {
   });
 }
 
-/** Löscht ein Training samt Sätzen und Cardio-Einträgen (nur für leere Trainings genutzt). */
+/** Löscht ein Training samt Sätzen und Cardio-Einträgen; ein Eingabe-Entwurf nur, wenn er dazugehört. */
 export function loescheTraining(id) {
   return mitTransaktion(['trainings', 'saetze', 'cardio', META], 'readwrite', async (t) => {
     for (const name of ['saetze', 'cardio']) {
@@ -311,7 +312,8 @@ export function loescheTraining(id) {
       keys.forEach((k) => t.objectStore(name).delete(k));
     }
     t.objectStore('trainings').delete(id);
-    schreibeMeta(t, META_ENTWURF_SATZ, null);
+    const entwurf = await leseMeta(t, META_ENTWURF_SATZ);
+    if (!entwurf || entwurf.trainingId === id) schreibeMeta(t, META_ENTWURF_SATZ, null);
   });
 }
 
@@ -367,5 +369,21 @@ export function leseKoerpergewichtGefragt() {
 export function setzeKoerpergewichtGefragt() {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_KG_GEFRAGT, true);
+  });
+}
+
+/** Zeitpunkt der letzten Sicherung (ISO) oder null. */
+export function leseLetzteSicherung() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_LETZTE_SICHERUNG));
+}
+
+/** Zuletzt gestartete App-Version (für „Erst sichern?“) oder null. */
+export function leseGeseheneVersion() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_VERSION));
+}
+
+export function setzeGeseheneVersion(version) {
+  return mitTransaktion([META], 'readwrite', (t) => {
+    schreibeMeta(t, META_VERSION, version);
   });
 }

@@ -1,6 +1,9 @@
 // Screen 05 „Übung hinzufügen“ und Screen 07 „Neue Übung“.
 import * as db from './db.js';
-import { GERAETE, MODI, STANDARD_MODUS, geraet } from './startdaten.js';
+import { GERAETE, MODI, MUSKELN, STANDARD_MODUS, geraet } from './startdaten.js';
+
+// „Zeit“ gibt es nur für Übungen der Startliste (Backlog #24).
+const EIGENE_MODI = MODI.filter((m) => m.id !== 'zeit');
 import { kommaZahl, positiveZahl } from './format.js';
 import { zuletztText } from './logik.js';
 import { einmalig, h, icon, kachel, leerHinweis, oeffneSheet, sheetKopf, griff, zeigeAlert } from './ui.js';
@@ -109,7 +112,7 @@ export function oeffneHinzufuegen({ art, uebungen, letztesMal, beiWahl, beiNeu }
 }
 
 const LEER_ENTWURF = {
-  name: '', geraet: 'langhantel', stufe: 2.5, stufeManuell: false, modus: STANDARD_MODUS, artIds: []
+  name: '', geraet: 'langhantel', stufe: 2.5, stufeManuell: false, modus: STANDARD_MODUS, artIds: [], muskelnP: [], muskelnS: []
 };
 
 const neueUebungEinmal = einmalig(oeffneNeueUebung);
@@ -136,7 +139,7 @@ async function oeffneNeueUebung(beiGesichert) {
 
   const modusZeile = h('button', {
     class: 'row', type: 'button', 'aria-label': 'Modus',
-    onclick: () => oeffneAuswahl('Modus', MODI, f.modus, (id) => { f.modus = id; merke(); aktualisiere(); })
+    onclick: () => oeffneAuswahl('Modus', EIGENE_MODI, f.modus, (id) => { f.modus = id; merke(); aktualisiere(); })
   }, h('div', { class: 'main t', text: 'Modus' }), modusWert, icon('i-chev', 's16 chev'));
 
   const stufeBereich = h('div', {},
@@ -152,6 +155,20 @@ async function oeffneNeueUebung(beiGesichert) {
         })
       }, h('div', { class: 'main t', text: 'Stufe' }), stufeWert, icon('i-chev', 's16 chev'))));
 
+  const muskelText = (ids) => (ids.length ? ids.map((id) => MUSKELN.find((m) => m.id === id)?.label).filter(Boolean).join(', ') : 'keine');
+  const hauptWert = h('div', { class: 'val muskel-wahl' });
+  const hilfWert = h('div', { class: 'val muskel-wahl' });
+  const muskelZeile = (titel, wert, feld, anderes) => h('button', {
+    class: 'row', type: 'button', 'aria-label': titel,
+    onclick: () => oeffneMuskelAuswahl(titel, f[feld], f[anderes], (ids) => { f[feld] = ids; merke(); aktualisiere(); })
+  }, h('div', { class: 'main t', text: titel }), wert, icon('i-chev', 's16 chev'));
+  const muskelBereich = h('div', {},
+    h('div', { class: 'section-h', text: 'Muskeln (für die Muskelfigur)' }),
+    h('div', { class: 'list plain' },
+      muskelZeile('Hauptmuskeln', hauptWert, 'muskelnP', 'muskelnS'),
+      muskelZeile('Mitarbeitende Muskeln', hilfWert, 'muskelnS', 'muskelnP')),
+    h('p', { class: 'foot-links', text: 'Hauptmuskel zählt 1, mitarbeitender 0,5 je Satz. Ohne Auswahl färbt die Übung nichts ein.' }));
+
   const istGueltig = () => f.name.trim().length > 0 && f.artIds.length > 0;
 
   const aktualisiere = () => {
@@ -161,6 +178,9 @@ async function oeffneNeueUebung(beiGesichert) {
     modusWert.textContent = MODI.find((m) => m.id === f.modus).label;
     stufeBereich.hidden = g.typ === 'cardio' || (f.geraet === 'kg' && f.modus === 'nurWdh');
     stufeWert.textContent = `${kommaZahl(f.stufe)} kg`;
+    muskelBereich.hidden = g.typ === 'cardio';
+    hauptWert.textContent = muskelText(f.muskelnP);
+    hilfWert.textContent = muskelText(f.muskelnS);
     anlegenKnopf.disabled = !istGueltig();
   };
 
@@ -207,6 +227,7 @@ async function oeffneNeueUebung(beiGesichert) {
           typ: g.typ,
           stufe: g.typ === 'cardio' ? null : f.stufe,
           modus: f.geraet === 'kg' ? f.modus : null,
+          muskeln: g.typ === 'cardio' ? null : { p: [...f.muskelnP], s: [...f.muskelnS] },
           eigen: true,
           erstelltAm: new Date().toISOString()
         };
@@ -247,6 +268,7 @@ async function oeffneNeueUebung(beiGesichert) {
             }, h('div', { class: 'main t', text: 'Gerät' }), geraetWert, icon('i-chev', 's16 chev')),
             modusZeile),
           stufeBereich,
+          muskelBereich,
           h('div', { class: 'section-h', text: 'Trainingsarten (mehrere möglich)' }),
           h('div', { class: 'list' }, arten.map(artZeile))),
         h('div', { class: 'fussleiste' }, anlegenKnopf)
@@ -254,6 +276,37 @@ async function oeffneNeueUebung(beiGesichert) {
     }
   });
   aktualisiere();
+}
+
+/** Mehrfachauswahl der 16 Muskelgruppen; Muskeln der anderen Rolle sind nicht wählbar. */
+function oeffneMuskelAuswahl(titel, gewaehlt, gesperrt, beiFertig) {
+  const auswahl = new Set(gewaehlt);
+  const zeile = (m) => {
+    const kreis = h('div', { class: 'check' });
+    const zeichne = () => {
+      kreis.classList.toggle('on', auswahl.has(m.id));
+      kreis.replaceChildren(...(auswahl.has(m.id) ? [icon('i-check', 's16 dick')] : []));
+    };
+    zeichne();
+    const andereRolle = gesperrt.includes(m.id);
+    return h('button', {
+      class: 'row', type: 'button', disabled: andereRolle,
+      onclick: () => { if (auswahl.has(m.id)) auswahl.delete(m.id); else auswahl.add(m.id); zeichne(); }
+    }, h('div', { class: 'main' }, h('div', { class: 't', text: m.label }),
+      andereRolle && h('div', { class: 'st', text: 'schon bei der anderen Rolle gewählt' })), kreis);
+  };
+  oeffneSheet({
+    klasse: 'voll',
+    beiZu: () => beiFertig(MUSKELN.map((m) => m.id).filter((id) => auswahl.has(id))),
+    baue: (schliessen) => [
+      griff(),
+      sheetKopf(titel, schliessen, 'mit-rand'),
+      h('div', { class: 'sheet-scroll' },
+        h('div', { class: 'list plain auf-weiss oben-12' }, MUSKELN.map(zeile)),
+        h('div', { class: 'abstand-16' })),
+      h('div', { class: 'sheet-fuss' }, h('button', { class: 'btn primary', type: 'button', text: 'Fertig', onclick: schliessen }))
+    ]
+  });
 }
 
 /** Auswahl-Sheet mit Häkchen (Gerät, Modus). Antippen wählt und schließt nach 200 ms. */

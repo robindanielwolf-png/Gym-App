@@ -1,6 +1,6 @@
 // Screen 03 „Satz eintragen“ und Screen 04 „Cardio eintragen“, jeweils auch zum Ändern/Löschen.
 import { ganzeZahl, kommaZahl, nichtNegativeZahl, positiveZahl } from './format.js';
-import { chipText, istCardio, istNurWdh, istZusatz, letztesMalText, satzBeschreibung, vorbelegtesGewicht } from './logik.js';
+import { chipText, istCardio, istNurWdh, istZusatz, istZeit, letztesMalText, satzBeschreibung, vorbelegtesGewicht } from './logik.js';
 import { aufwaermGewicht, vorschlag } from './regeln.js';
 import { behaeltFokus, griff, h, icon, oeffneSheet, sheetKopf, zeigeAlert } from './ui.js';
 import { FEHLER_F2 } from './uebungen.js';
@@ -66,6 +66,7 @@ const kgText = (w) => `${kommaZahl(w)} kg`;
 function vorschlagZeile(v) {
   if (v.art === 'erstes') return h('p', { class: 'hint', text: 'Noch kein Vorschlag – erstes Mal' });
   if (v.art === 'wdh') return h('p', { class: 'hint' }, 'Ziel ', h('b', { text: `${v.wert} Wdh.` }));
+  if (v.art === 'zeit') return h('p', { class: 'hint' }, 'Ziel ', h('b', { text: `${v.wert} Sek.` }));
   const zahl = v.art === 'zusatz' ? (v.wert > 0 ? `+${kgText(v.wert)}` : 'ohne Zusatz') : kgText(v.wert);
   const diff = v.diff === 0 ? null : `(${v.diff > 0 ? '+' : '−'}${kgText(Math.abs(v.diff))})`;
   return h('p', { class: 'hint' }, 'Vorschlag ', h('b', { text: zahl }), diff && ' ', diff && h('span', { class: 'd', text: diff }));
@@ -127,7 +128,10 @@ function oeffneKoerpergewicht({ kontext, aendern, beiZu }) {
 function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   const nurWdh = istNurWdh(uebung);
   const zusatz = istZusatz(uebung);
-  const koerper = nurWdh || zusatz;
+  const zeitUebung = istZeit(uebung);
+  const koerper = nurWdh || zusatz || zeitUebung;
+  // Nur Wdh. und Zeit haben kein Gewichtsfeld; der Satz speichert dann gewicht: null.
+  const ohneGewicht = nurWdh || zeitUebung;
   const heute = () => kontext.heute(uebung.id);
   const nummer = bearbeite ? heute().findIndex((s) => s.id === bearbeite.id) + 1 : heute().length + 1;
   const vor = vorschlag(uebung, kontext.letztesMal?.eintraege);
@@ -152,8 +156,8 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   });
   const wdh = h('input', {
     class: 'zahl', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off',
-    maxlength: '4', 'aria-label': 'Wiederholungen', value: start.wdh,
-    placeholder: !bearbeite && vor.art === 'wdh' ? String(vor.wert) : false
+    maxlength: zeitUebung ? '4' : '4', 'aria-label': zeitUebung ? 'Zeit' : 'Wiederholungen', value: start.wdh,
+    placeholder: !bearbeite && vor.art === (zeitUebung ? 'zeit' : 'wdh') ? String(vor.wert) : false
   });
   const schalter = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-label': 'Aufwärmsatz' });
   const warmWert = h('span', { class: 'w' });
@@ -169,7 +173,7 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   const kgZeile = koerper && h('button', { class: 'srow', type: 'button', 'aria-label': 'Körpergewicht' },
     h('span', { class: 'l', text: 'Körpergewicht' }), kgWert);
 
-  const gueltig = () => ganzeZahl(wdh.value) !== null && (nurWdh || nichtNegativeZahl(gewicht.value) !== null);
+  const gueltig = () => ganzeZahl(wdh.value) !== null && (ohneGewicht || nichtNegativeZahl(gewicht.value) !== null);
 
   const merke = () => kontext.merke({
     uebungId: uebung.id, satzId: bearbeite?.id || null,
@@ -263,18 +267,21 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   if (kgZeile) kgZeile.addEventListener('click', () => oeffneKg(kontext.koerpergewicht() !== null));
 
   const werte = () => ({
-    gewicht: nurWdh ? null : nichtNegativeZahl(gewicht.value),
+    gewicht: ohneGewicht ? null : nichtNegativeZahl(gewicht.value),
     wdh: ganzeZahl(wdh.value),
     aufwaermen
   });
 
-  const gewichtTeil = nurWdh ? [] : [
+  const gewichtTeil = ohneGewicht ? [] : [
     gewichtLabel,
     h('div', { class: 'stepper' },
       minus,
       bignum,
       behaeltFokus(h('button', { class: 'pm', type: 'button', 'aria-label': 'Mehr', onclick: () => schritt(1) }, icon('i-plus'))))
   ];
+
+  const wdhLabel = zeitUebung ? 'Zeit (Sek.)' : 'Wiederholungen';
+  const wdhUnit = zeitUebung ? 'Sek.' : 'Wdh.';
 
   const kopf = bearbeite
     ? [h('p', { class: 'hint', text: `Satz ${nummer} ändern` })]
@@ -340,8 +347,8 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
           ...kopf,
           chips,
           ...gewichtTeil,
-          h('div', { class: 'field-label', text: 'Wiederholungen' }),
-          h('label', { class: 'repfield' }, wdh, h('span', { class: 'ph', text: 'Wdh.' })),
+          h('div', { class: 'field-label', text: wdhLabel }),
+          h('label', { class: 'repfield' }, wdh, h('span', { class: 'ph', text: wdhUnit })),
           kgZeile && h('div', { class: 'abstand-8' }),
           kgZeile,
           h('div', { class: `toggle-row ${kgZeile ? 'mit-linie' : ''}`.trim() },

@@ -1,10 +1,11 @@
 import { tageText } from './format.js';
 import { h, icon, kachel, leerHinweis } from './ui.js';
-import { oeffneSicherung } from './sicherung-sheet.js';
 
 const TABS = [
+  { id: 'start', label: 'Start', iconName: 'i-person' },
   { id: 'training', label: 'Training', iconName: 'i-dumbbell' },
   { id: 'verlauf', label: 'Verlauf', iconName: 'i-calendar' },
+  { id: 'statistik', label: 'Statistik', iconName: 'i-chart' },
   { id: 'rekorde', label: 'Rekorde', iconName: 'i-trophy' }
 ];
 
@@ -13,12 +14,13 @@ const fortsetzen = h('div', { class: 'list resume', id: 'fortsetzen', hidden: tr
 const naechsteKarte = h('div', { class: 'next', id: 'als-naechstes', hidden: true });
 const artenTitel = h('div', { class: 'section-h oben-16', text: 'Trainingsart wählen' });
 
+// Callbacks pro Tab-ID, die aufgerufen werden, wenn der Tab aktiviert wird (Aktualisierung beim Öffnen)
+const tabAktivierungsCallbacks = new Map();
+
 function ansichtTraining() {
   return h('div', { class: 'view' },
     h('div', { class: 'title-row' },
-      h('h1', { class: 'largetitle', text: 'Training' }),
-      h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
-        icon('i-sync', 's24'))),
+      h('h1', { class: 'largetitle', text: 'Training' })),
     fortsetzen,
     naechsteKarte,
     artenTitel,
@@ -73,19 +75,25 @@ function ansichtLeer(titel, hinweis) {
     h('div', { class: 'empty-wrap' }, leerHinweis(hinweis)));
 }
 
+/**
+ * Registriert einen Callback, der aufgerufen wird, wenn ein Tab aktiviert wird.
+ * Das ermöglicht es, dass Verlauf/Rekorde sofort den aktuellen Stand zeigen.
+ * tabId: 'verlauf' oder 'rekorde'
+ */
+export function registerTabActivation(tabId, callback) {
+  if (!tabAktivierungsCallbacks.has(tabId)) {
+    tabAktivierungsCallbacks.set(tabId, []);
+  }
+  tabAktivierungsCallbacks.get(tabId).push(callback);
+}
+
 export function baueTabs(wurzel) {
   const ansichten = {
+    start: h('div', { class: 'view start-view', hidden: true, id: 'start-ansicht' }),
     training: ansichtTraining(),
-    verlauf: ansichtLeer('Verlauf', {
-      iconName: 'i-calendar',
-      headline: 'Kommt bald',
-      subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
-    }),
-    rekorde: ansichtLeer('Rekorde', {
-      iconName: 'i-trophy',
-      headline: 'Kommt bald',
-      subhead: 'Kommt in einer der nächsten Versionen – deine Trainings sind gespeichert.'
-    })
+    verlauf: h('div', { class: 'view verlauf-view', hidden: true, id: 'verlauf-ansicht' }),
+    statistik: h('div', { class: 'view', hidden: true, id: 'statistik-ansicht' }),
+    rekorde: h('div', { class: 'view', hidden: true, id: 'rekorde-ansicht' })
   };
 
   const knoepfe = {};
@@ -96,6 +104,17 @@ export function baueTabs(wurzel) {
       if (t.id === id) knoepfe[t.id].setAttribute('aria-current', 'page');
       else knoepfe[t.id].removeAttribute('aria-current');
     }
+    // Triggere Tab-Aktivierungs-Callbacks für aktuelle Datenaktualisierung
+    const callbacks = tabAktivierungsCallbacks.get(id);
+    if (callbacks) {
+      for (const cb of callbacks) {
+        try {
+          cb();
+        } catch (e) {
+          console.error(`Tab-Aktivierungs-Callback für '${id}' fehlgeschlagen:`, e);
+        }
+      }
+    }
   };
 
   for (const t of TABS) {
@@ -104,5 +123,5 @@ export function baueTabs(wurzel) {
   }
 
   wurzel.append(...Object.values(ansichten), h('nav', { class: 'tabbar' }, Object.values(knoepfe)));
-  zeige('training');
+  zeige('start');
 }

@@ -1,17 +1,34 @@
 import * as db from './db.js';
 import { baueTabs } from './tabs.js';
+import { initVerlauf } from './verlauf.js';
+import { initRekorde } from './rekorde.js';
+import { initStatistik } from './statistik.js';
+import { initStartseite } from './muskel-figur.js';
 import { initTraining, ladeUndZeige } from './training.js';
 import { folgeTastatur, offeneEbenen, zeigeAlert } from './ui.js';
+import { aktualisierePunkt, frageErstSichern } from './sicherung-sheet.js';
 
 folgeTastatur();
 const app = document.getElementById('app');
+
 baueTabs(app);
+const aktualisiereStartseite = initStartseite();
+// Verlauf und Rekorde füllen ihre (von baueTabs angelegten) Ansichten und laden ihre Daten
+// selbst, sobald der Tab geöffnet wird oder sich Daten ändern.
+initVerlauf();
+initStatistik();
+initRekorde();
 initTraining(app);
 
 navigator.storage?.persist?.().catch(() => {});
 
 db.initialisiere()
   .then(() => ladeUndZeige({ start: true }))
+  .then(() => aktualisiereStartseite())
+  .then(() => {
+    aktualisierePunkt();
+    return frageErstSichern();
+  })
   .catch(() => {
     zeigeAlert({
       titel: 'Das hat nicht geklappt',

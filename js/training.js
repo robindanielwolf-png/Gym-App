@@ -10,6 +10,8 @@ import {
 import { alsNaechstesDran, neueRekorde, rekordHinweis } from './regeln.js';
 import { oeffneSatz } from './satz.js';
 import { setzeArten } from './tabs.js';
+import { zeigeTrainingsUebersicht } from './muskel-figur.js';
+import { aktualisierePunkt, frageJetztSichern } from './sicherung-sheet.js';
 import { FEHLER_F2, oeffneHinzufuegen } from './uebungen.js';
 import {
   einmalig, griff, h, icon, kachel, leerHinweis, oeffneSheet, randWischen, schliesseAlles, sheetKopf, zeigeAlert, zeigeHinweis
@@ -284,11 +286,15 @@ function kontextFuer(uebung) {
       const i = liste.findIndex((e) => e.id === eintrag.id);
       if (i >= 0) liste[i] = eintrag; else liste.push(eintrag);
       zeichne();
+      // Event triggern: Verlauf/Rekorde und andere Module laden Daten neu
+      window.dispatchEvent(new Event('gym-daten-geaendert'));
     },
     async loesche(store, eintrag) {
       await db.loescheEintrag(store, eintrag.id);
       daten[store] = daten[store].filter((e) => e.id !== eintrag.id);
       zeichne();
+      // Event triggern: Verlauf/Rekorde und andere Module laden Daten neu
+      window.dispatchEvent(new Event('gym-daten-geaendert'));
     },
     merke(entwurf) {
       db.setzeEntwurfSatz(entwurf && { ...entwurf, trainingId: lauf.training.id }).catch(() => {});
@@ -425,6 +431,11 @@ const beenden = einmalig(async () => {
     await frageUndVerwerfe();
     return;
   }
+  const trainingId = lauf.training.id;
+  const art = artVon(lauf.training.artId);
+  const alle = eintraege();
+  const anzahlUebungen = new Set(alle.map((e) => e.uebungId)).size;
+  const gespeichert = `${art?.name || 'Das Training'} mit ${anzahlUebungen} ${anzahlUebungen === 1 ? 'Übung' : 'Übungen'} und ${alle.length} ${alle.length === 1 ? 'Satz' : 'Sätzen'} ist gespeichert.`;
   try {
     await db.speichereTraining({ ...lauf.training, endedAt: new Date().toISOString() });
   } catch {
@@ -433,6 +444,9 @@ const beenden = einmalig(async () => {
   }
   merkeAnsicht('start');
   await ladeUndZeige({ ziel: 'start' });
+  await zeigeTrainingsUebersicht(daten, trainingId);
+  await frageJetztSichern(gespeichert);
+  aktualisierePunkt();
 });
 
 function artAendern() {

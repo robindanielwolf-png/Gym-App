@@ -1,9 +1,9 @@
 // Service Worker: legt alle App-Dateien in einen Cache und liefert sie offline aus.
 // Version und Stand immer gemeinsam ändern mit js/version.js und den versionierten
 // Modul-URLs (?v=) samt CSP-Hash der Import-Map in index.html.
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 // Stand innerhalb einer Version: bei jeder Dateiänderung erhöhen, damit der Cache sicher neu lädt.
-const STAND = 2;
+const STAND = 12;
 
 const SCOPE_PFAD = new URL(self.registration.scope).pathname;
 const IST_VORSCHAU = SCOPE_PFAD.endsWith('/vorschau/');
@@ -33,6 +33,14 @@ const DATEIEN = [
   './js/satz.js',
   './js/uebungen.js',
   './js/sicherung-sheet.js',
+  './js/tab-events.js',
+  './js/verlauf.js',
+  './js/rekorde.js',
+  './js/statistik.js',
+  './js/muskeln.js',
+  './js/muskel-figur.js',
+  './js/uebungsdetail.js',
+  './js/muskel-figur-pfade.js',
   './icons/app-icon-180.png',
   './icons/app-icon-512.png'
 ];
