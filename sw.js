@@ -1,9 +1,9 @@
 // Service Worker: legt alle App-Dateien in einen Cache und liefert sie offline aus.
 // Version und Stand immer gemeinsam ändern mit js/version.js und den versionierten
 // Modul-URLs (?v=) samt CSP-Hash der Import-Map in index.html.
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 // Stand innerhalb einer Version: bei jeder Dateiänderung erhöhen, damit der Cache sicher neu lädt.
-const STAND = 12;
+const STAND = 3;
 
 const SCOPE_PFAD = new URL(self.registration.scope).pathname;
 const IST_VORSCHAU = SCOPE_PFAD.endsWith('/vorschau/');
@@ -37,12 +37,24 @@ const DATEIEN = [
   './js/verlauf.js',
   './js/rekorde.js',
   './js/statistik.js',
+  './js/mehr.js',
   './js/muskeln.js',
   './js/muskel-figur.js',
+  './js/figur-3d.js',
+  './js/figur-3d-kern.js',
   './js/uebungsdetail.js',
   './js/muskel-figur-pfade.js',
   './icons/app-icon-180.png',
-  './icons/app-icon-512.png'
+  './icons/app-icon-512.png',
+  // 3D-Muskelfigur (0.5.0): Modell, Lizenz und three.js mit den benötigten Zusatzmodulen
+  './muskelfigur.glb',
+  './LIZENZ-Modell.md',
+  './lib/three.module.js',
+  './lib/LICENSE-three.txt',
+  './lib/jsm/controls/OrbitControls.js',
+  './lib/jsm/loaders/GLTFLoader.js',
+  './lib/jsm/libs/meshopt_decoder.module.js',
+  './lib/jsm/utils/BufferGeometryUtils.js'
 ];
 
 self.addEventListener('install', (event) => {

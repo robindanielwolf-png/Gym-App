@@ -22,7 +22,7 @@ function svg(tag, attrs = {}, text = null) {
 const sekText = (s) => (s < 60 ? `${s} s` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} min`);
 
 /** Art der Übung: Beschriftung, Einheit und Wert eines Eintrags fürs Diagramm. */
-function messart(uebung) {
+export function messart(uebung) {
   if (istCardio(uebung)) return { titel: 'Dauer (min)', wert: (e) => e.dauerMin, text: (w) => `${kommaZahl(w)} min` };
   if (istZeit(uebung)) return { titel: 'Zeit (s) · Arbeitssätze', wert: (e) => e.wdh, text: sekText };
   if (istNurWdh(uebung)) return { titel: 'Wiederholungen · Arbeitssätze', wert: (e) => e.wdh, text: (w) => `${w} Wdh.` };
@@ -31,7 +31,7 @@ function messart(uebung) {
 }
 
 /** Trainings der Übung, älteste zuerst: { training, eintraege, wert }. */
-function trainingsDerUebung(daten, uebung, art) {
+export function trainingsDerUebung(daten, uebung, art) {
   const trainings = new Map(daten.trainings.map((t) => [t.id, t]));
   const gruppen = new Map();
   for (const e of [...daten.saetze, ...daten.cardio]) {
@@ -46,7 +46,7 @@ function trainingsDerUebung(daten, uebung, art) {
   })).sort((a, b) => zeit(a.training.startedAt) - zeit(b.training.startedAt));
 }
 
-function achse(min, max) {
+export function achse(min, max) {
   if (min === max) { min = Math.max(0, min - 1); max += 1; }
   const roh = (max - min) / 3;
   const p = 10 ** Math.floor(Math.log10(roh));

@@ -29,6 +29,7 @@ const META_ENTWURF_SATZ = 'entwurfSatz';
 const META_ANSICHT = 'letzteAnsicht';
 const META_KG_GEFRAGT = 'koerpergewichtGefragt';
 const META_VERSION = 'geseheneVersion';
+const META_HAUPTUEBUNGEN = 'hauptuebungen';
 
 export const KOERPERGEWICHT_ID = 'aktuell';
 
@@ -385,5 +386,16 @@ export function leseGeseheneVersion() {
 export function setzeGeseheneVersion(version) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_VERSION, version);
+  });
+}
+
+/** Hauptübungen (Sterne auf Mehr → Rekorde): Liste von Übungs-IDs oder null, solange nichts gewählt wurde. */
+export function leseHauptuebungen() {
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_HAUPTUEBUNGEN));
+}
+
+export function setzeHauptuebungen(ids) {
+  return mitTransaktion([META], 'readwrite', (t) => {
+    schreibeMeta(t, META_HAUPTUEBUNGEN, ids);
   });
 }

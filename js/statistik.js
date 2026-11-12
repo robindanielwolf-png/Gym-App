@@ -2,7 +2,6 @@
 import * as db from './db.js';
 import { h, leerHinweis } from './ui.js';
 import { MUSKELN, muskelPunkte, muskelStufe, trainingsDerLetztenTage } from './muskeln.js';
-import { registerTabUpdater } from './tab-events.js';
 
 const ZEITRAEUME = [
   { id: 'heute', label: 'Heute', tage: 1 },
@@ -64,11 +63,13 @@ export function baueSatistikView(daten, zeitraumId = 'woche', onZeitraumChange =
         : 'Summe aller Trainings. Hauptmuskel zählt 1, mitarbeitender 0,5.' })));
 }
 
-/** Füllt die von baueTabs angelegte Ansicht und lädt die Daten beim Öffnen und nach Änderungen. */
-export function initStatistik() {
-  const ansicht = document.getElementById('statistik-ansicht');
+/**
+ * Füllt den Platz (slot) der Unterseite Mehr → Statistik. Gibt die Funktion zurück, die beim
+ * Öffnen und nach Datenänderungen die Daten neu lädt (mehr.js ruft sie auf).
+ */
+export function initStatistik(slot) {
   const inhalt = h('div');
-  ansicht.replaceChildren(
+  slot.replaceChildren(
     h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Statistik' })),
     h('div', { class: 'start-unterzeile', text: 'Sätze pro Muskelgruppe' }),
     inhalt);
@@ -77,12 +78,12 @@ export function initStatistik() {
   const zeichne = () => {
     if (daten) inhalt.replaceChildren(baueSatistikView(daten, zeitraum, (z) => { zeitraum = z; zeichne(); }));
   };
-  registerTabUpdater('statistik', async () => {
+  return async () => {
     try {
       daten = await db.leseDaten();
       zeichne();
     } catch (e) {
       console.error('Statistik konnte nicht geladen werden:', e);
     }
-  });
+  };
 }

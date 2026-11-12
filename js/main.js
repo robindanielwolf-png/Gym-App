@@ -1,8 +1,7 @@
 import * as db from './db.js';
 import { baueTabs } from './tabs.js';
 import { initVerlauf } from './verlauf.js';
-import { initRekorde } from './rekorde.js';
-import { initStatistik } from './statistik.js';
+import { initMehr } from './mehr.js';
 import { initStartseite } from './muskel-figur.js';
 import { initTraining, ladeUndZeige } from './training.js';
 import { folgeTastatur, offeneEbenen, zeigeAlert } from './ui.js';
@@ -13,11 +12,10 @@ const app = document.getElementById('app');
 
 baueTabs(app);
 const aktualisiereStartseite = initStartseite();
-// Verlauf und Rekorde füllen ihre (von baueTabs angelegten) Ansichten und laden ihre Daten
-// selbst, sobald der Tab geöffnet wird oder sich Daten ändern.
+// Verlauf füllt seine (von baueTabs angelegte) Ansicht und lädt die Daten selbst, sobald der Tab
+// geöffnet wird oder sich Daten ändern. Mehr baut Statistik, Rekorde und Quellen auf.
 initVerlauf();
-initStatistik();
-initRekorde();
+initMehr();
 initTraining(app);
 
 navigator.storage?.persist?.().catch(() => {});

@@ -1,12 +1,12 @@
 import { tageText } from './format.js';
 import { h, icon, kachel, leerHinweis } from './ui.js';
 
+// 0.5.0: Statistik und Rekorde liegen jetzt unter „Mehr“ (mehr.js).
 const TABS = [
   { id: 'start', label: 'Start', iconName: 'i-person' },
   { id: 'training', label: 'Training', iconName: 'i-dumbbell' },
   { id: 'verlauf', label: 'Verlauf', iconName: 'i-calendar' },
-  { id: 'statistik', label: 'Statistik', iconName: 'i-chart' },
-  { id: 'rekorde', label: 'Rekorde', iconName: 'i-trophy' }
+  { id: 'mehr', label: 'Mehr', iconName: 'i-more' }
 ];
 
 const artenListe = h('div', { class: 'list', id: 'arten-liste' });
@@ -14,8 +14,9 @@ const fortsetzen = h('div', { class: 'list resume', id: 'fortsetzen', hidden: tr
 const naechsteKarte = h('div', { class: 'next', id: 'als-naechstes', hidden: true });
 const artenTitel = h('div', { class: 'section-h oben-16', text: 'Trainingsart wählen' });
 
-// Callbacks pro Tab-ID, die aufgerufen werden, wenn der Tab aktiviert wird (Aktualisierung beim Öffnen)
+// Callbacks pro Tab-ID: beim Öffnen (nach jedem Antippen des Tabs) und beim Verlassen.
 const tabAktivierungsCallbacks = new Map();
+const tabVerlassenCallbacks = new Map();
 
 function ansichtTraining() {
   return h('div', { class: 'view' },
@@ -76,9 +77,8 @@ function ansichtLeer(titel, hinweis) {
 }
 
 /**
- * Registriert einen Callback, der aufgerufen wird, wenn ein Tab aktiviert wird.
- * Das ermöglicht es, dass Verlauf/Rekorde sofort den aktuellen Stand zeigen.
- * tabId: 'verlauf' oder 'rekorde'
+ * Registriert einen Callback, der aufgerufen wird, wenn ein Tab geöffnet oder erneut angetippt wird.
+ * Der Callback bekommt { nochmal: true }, wenn der Tab schon offen war.
  */
 export function registerTabActivation(tabId, callback) {
   if (!tabAktivierungsCallbacks.has(tabId)) {
@@ -87,38 +87,49 @@ export function registerTabActivation(tabId, callback) {
   tabAktivierungsCallbacks.get(tabId).push(callback);
 }
 
+/** Callback, wenn der Tab verlassen wird (z. B. um die 3D-Figur freizugeben). */
+export function registerTabVerlassen(tabId, callback) {
+  if (!tabVerlassenCallbacks.has(tabId)) {
+    tabVerlassenCallbacks.set(tabId, []);
+  }
+  tabVerlassenCallbacks.get(tabId).push(callback);
+}
+
+function rufeAuf(liste, arg) {
+  for (const cb of liste || []) {
+    try {
+      cb(arg);
+    } catch (e) {
+      console.error('Tab-Callback fehlgeschlagen:', e);
+    }
+  }
+}
+
 export function baueTabs(wurzel) {
   const ansichten = {
     start: h('div', { class: 'view start-view', hidden: true, id: 'start-ansicht' }),
     training: ansichtTraining(),
     verlauf: h('div', { class: 'view verlauf-view', hidden: true, id: 'verlauf-ansicht' }),
-    statistik: h('div', { class: 'view', hidden: true, id: 'statistik-ansicht' }),
-    rekorde: h('div', { class: 'view', hidden: true, id: 'rekorde-ansicht' })
+    // Rahmen für die Unterseiten von Mehr (Liste, Statistik, Rekorde, Quellen); füllt mehr.js.
+    mehr: h('div', { class: 'mehr-rahmen', hidden: true, id: 'mehr-ansicht' })
   };
 
   const knoepfe = {};
-  const zeige = (id) => {
+  let aktuell = null;
+  const zeige = (id, nochmal = false) => {
+    if (aktuell && aktuell !== id) rufeAuf(tabVerlassenCallbacks.get(aktuell));
+    aktuell = id;
     for (const t of TABS) {
       ansichten[t.id].hidden = t.id !== id;
       knoepfe[t.id].classList.toggle('on', t.id === id);
       if (t.id === id) knoepfe[t.id].setAttribute('aria-current', 'page');
       else knoepfe[t.id].removeAttribute('aria-current');
     }
-    // Triggere Tab-Aktivierungs-Callbacks für aktuelle Datenaktualisierung
-    const callbacks = tabAktivierungsCallbacks.get(id);
-    if (callbacks) {
-      for (const cb of callbacks) {
-        try {
-          cb();
-        } catch (e) {
-          console.error(`Tab-Aktivierungs-Callback für '${id}' fehlgeschlagen:`, e);
-        }
-      }
-    }
+    rufeAuf(tabAktivierungsCallbacks.get(id), { nochmal });
   };
 
   for (const t of TABS) {
-    knoepfe[t.id] = h('button', { class: 'tab', type: 'button', onclick: () => zeige(t.id) },
+    knoepfe[t.id] = h('button', { class: 'tab', type: 'button', onclick: () => zeige(t.id, aktuell === t.id) },
       icon(t.iconName), h('span', { text: t.label }));
   }
 
