@@ -4,6 +4,7 @@ import { datumKurz, datumLang, kommaZahl } from './format.js';
 import { chipText, istCardio, istNurWdh, istZeit, istZusatz } from './logik.js';
 import { einerMax, rekorde } from './regeln.js';
 import { h, oeffneSheet, sheetKopf, griff, icon } from './ui.js';
+import { WDH_UEBUNGEN, wdhKarte, wdhLetzte14 } from './wdh-verlauf.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const ZEITRAEUME = [{ id: 3, label: '3 Mon.' }, { id: 6, label: '6 Mon.' }, { id: 0, label: 'Alles' }];
@@ -190,6 +191,7 @@ export function oeffneUebungsdetail(daten, uebung) {
     zuruecktreten: true,
     baue: (zu) => [griff(), sheetKopf(uebung.name, zu),
       karte,
+      WDH_UEBUNGEN.includes(uebung.id) && wdhKarte(wdhLetzte14(daten, uebung.id)),
       h('div', { class: 'section-h detail-abschnitt', text: 'Rekorde' }),
       h('div', { class: 'rekord-kacheln' }, rekordKacheln(uebung, alle)),
       alle.length > 0 && trainingsListe(uebung, alle),

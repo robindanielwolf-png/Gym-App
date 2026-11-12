@@ -447,3 +447,16 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .rk-seg{margin:12px 0 0}
 .rk-zeile{padding-right:8px}
 .rk-name-knopf{flex:1;min-width:0;text-align:left;font-size:17px;line-height:22px;padding:16px 0}
+
+/* 0.5.1: Wiederholungen je Tag, letzte 14 Tage (Liegestütze, Klimmzüge; Rekorde und Übungsdetail) */
+.wdh-karte{background:var(--surface);border-radius:var(--r-card);padding:12px 12px 10px;margin-top:12px}
+.rk-karte .wdh-karte{background:var(--bg)}
+.wdh-kopf{font-size:13px;line-height:18px;color:var(--text-2);padding:0 4px 4px;text-transform:uppercase;letter-spacing:.2px}
+.wdh-info{font-size:15px;line-height:20px;font-weight:600;min-height:20px;padding:0 4px 6px}
+.wdh-chart{display:block;width:100%;height:auto;font-family:var(--font)}
+.wdh-balken{fill:var(--accent)}
+.wdh-balken.gewaehlt{fill:#0062CC}
+.wdh-leer{fill:#C7C7CC}
+.wdh-treffer{fill:transparent;cursor:pointer}
+.wdh-achse{font-size:10px;fill:var(--text-2)}
+.wdh-fuss{font-size:13px;line-height:18px;color:var(--text-2);padding:6px 4px 0}
