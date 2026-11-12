@@ -37,6 +37,21 @@ function punkteVon(daten, u, art) {
   return trainingsDerUebung(daten, u, art).filter((p) => p.wert > 0);
 }
 
+/** Gewichts- und Zusatzübungen: Arbeitssatz-Max nach Regel R1 (Bugfix 0.5.0-2). */
+const nachR1 = (u) => hatEinerMax(u) || istZusatz(u);
+
+/**
+ * Arbeitssatz-Max nach R1, je Training: schwerster Satz mit ≥ 6 Wdh. (Zusatz: schwerstesZusatz),
+ * berechnet mit rekorde() aus regeln.js. Trainings ohne passenden Satz entfallen.
+ */
+function schwersteJeTraining(daten, u) {
+  return trainingsDerUebung(daten, u, messart(u)).flatMap((p) => {
+    const r = rekorde(u, p.eintraege);
+    const s = istZusatz(u) ? r.schwerstesZusatz : r.schwerstes;
+    return s ? [{ training: p.training, eintraege: p.eintraege, wert: s.gewicht, satz: s }] : [];
+  });
+}
+
 /** Liniendiagramm 315 × 112 (Design Screen 09), Achse wie im Übungsdetail. */
 function minidiagramm(pk, art) {
   const B = 315, H = 112, L = 30, R = 308, O = 10, U = 88;
@@ -124,6 +139,14 @@ export function initRekorde(slot) {
       const unter = r.belegt ? 'belegt · 1 Wdh.' : `geschätzt${quelle ? ` · aus ${kommaZahl(quelle.gewicht)} × ${quelle.wdh}` : ''}`;
       return { wert: `${kommaZahl(r.wert)} kg`, unter };
     }
+    if (nachR1(u)) {
+      const r = rekorde(u, alle);
+      const s = istZusatz(u) ? r.schwerstesZusatz : r.schwerstes;
+      if (!s) return { wert: '–', unter: 'Kein Satz mit ≥ 6 Wdh.' };
+      const treffer = pk.find((p) => p.eintraege.some((x) => x.gewicht === s.gewicht && x.wdh === s.wdh));
+      const datum = treffer ? datumKurz(treffer.training.startedAt) : '';
+      return { wert: a.basis.text(s.gewicht), unter: `× ${s.wdh}${datum ? ` · ${datum}` : ''}` };
+    }
     if (pk.length === 0) return { wert: '–', unter: 'Noch kein Arbeitssatz' };
     const best = pk.reduce((b, p) => (p.wert > b.wert || (p.wert === b.wert && zeit(p.training.startedAt) > zeit(b.training.startedAt)) ? p : b));
     const datum = datumKurz(best.training.startedAt);
@@ -137,7 +160,7 @@ export function initRekorde(slot) {
     const modus = a.einer && modusWahl.get(u.id) === 'einer' ? 'einer' : 'max';
     const art = modus === 'einer' ? a.einer : a.basis;
     const alle = trainingsDerUebung(daten, u, a.basis).flatMap((p) => p.eintraege);
-    const pk = punkteVon(daten, u, art);
+    const pk = modus === 'max' && nachR1(u) ? schwersteJeTraining(daten, u) : punkteVon(daten, u, art);
     const k = kopfText(u, a, modus, pk, alle);
     const umschalter = a.einer && h('div', { class: 'seg rk-seg' },
       [['max', 'Arbeitssatz-Max'], ['einer', '1RM']].map(([id, text]) => h('button', {
