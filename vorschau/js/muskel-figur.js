@@ -4,6 +4,8 @@ import * as db from './db.js';
 import { h, icon, oeffneSheet, sheetKopf, griff } from './ui.js';
 import { oeffneSicherung } from './sicherung-sheet.js';
 import { registerTabUpdater } from './tab-events.js';
+import { registerTabVerlassen } from './tabs.js';
+import { erstelleFigur } from './figur-3d.js';
 import { FIGUR_VORNE, FIGUR_HINTEN } from './muskel-figur-pfade.js';
 import { MUSKELN, MUSKELN_NACH, muskelPunkte, muskelStufe, trainingsDerLetztenTage } from './muskeln.js';
 
@@ -92,37 +94,51 @@ function sheetInhalt(punkte, zeitraum) {
     h('p', { class: 'foot-links', text: 'Hauptmuskel zählt 1, mitarbeitender Muskel 0,5 je Arbeitssatz. Aufwärmsätze und Cardio zählen nicht.' }));
 }
 
+/** 2D-Ersatz für die 3D-Figur (kein WebGL oder Ladefehler): vorne und hinten nebeneinander. */
+function zweiD(punkte) {
+  return h('div', { class: 'figur-paar figur-fallback' },
+    seite(FIGUR_VORNE, punkte, 'tage7', 'Muskeln vorne'),
+    seite(FIGUR_HINTEN, punkte, 'tage7', 'Muskeln hinten'));
+}
+
 /**
- * Tab „Start“: Figur vorne groß in der Mitte, beim Scrollen die Rückseite, darunter die Liste.
- * Lädt beim Öffnen und nach Datenänderungen; liefert die Aktualisierung für den App-Start.
+ * Tab „Start“ (0.5.0): Karte „Trainierte Muskeln · letzte 7 Tage“ mit der drehbaren 3D-Figur,
+ * darunter Legende und Liste wie bisher. Lädt beim Öffnen und nach Datenänderungen; liefert die
+ * Aktualisierung für den App-Start.
  */
 export function initStartseite() {
   const ansicht = document.getElementById('start-ansicht');
+  const stage = h('div', { class: 'figur3d' });
   const inhalt = h('div');
+  const figur = erstelleFigur(stage);
   ansicht.replaceChildren(
-    h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Muskeln' }),
+    h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Start' }),
       h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
         icon('i-sync', 's24'))),
-    h('div', { class: 'start-unterzeile', text: 'Letzte 7 Tage' }),
     inhalt);
   const aktualisiere = async () => {
     try {
       const daten = await db.leseDaten();
       const punkte = muskelPunkte(daten, trainingsDerLetztenTage(daten, 7));
+      const stufen = Object.fromEntries(MUSKELN.map((m) => [m.id, muskelStufe(punkte[m.id], 'tage7')]));
       inhalt.replaceChildren(
-        h('div', { class: 'start-figur' }, seite(FIGUR_VORNE, punkte, 'tage7', 'Muskeln vorne'),
-          h('div', { class: 'start-seite', text: 'Vorne' })),
-        h('div', { class: 'start-figur' }, seite(FIGUR_HINTEN, punkte, 'tage7', 'Muskeln hinten'),
-          h('div', { class: 'start-seite', text: 'Hinten' })),
-        legende(),
+        h('div', { class: 'figur-karte' },
+          h('div', { class: 'card-head' },
+            h('span', { class: 'k', text: 'Trainierte Muskeln' }),
+            h('span', { class: 'sub', text: 'letzte 7 Tage' })),
+          stage,
+          legende()),
         h('div', { class: 'section-h oben-16', text: 'Sätze pro Muskelgruppe' }),
         h('div', { class: 'start-liste' }, muskelListe(punkte, 'tage7')),
         h('p', { class: 'foot-links', text: 'Hauptmuskel zählt 1, mitarbeitender Muskel 0,5 je Arbeitssatz. Aufwärmsätze und Cardio zählen nicht.' }),
         h('div', { class: 'abstand-16' }));
+      figur.setzeInhalt({ stufen, zweiD: () => zweiD(punkte) });
+      figur.setzeTabAktiv(!ansicht.hidden);
     } catch (e) {
       console.error('Startseite konnte nicht geladen werden:', e);
     }
   };
+  registerTabVerlassen('start', () => figur.setzeTabAktiv(false));
   registerTabUpdater('start', aktualisiere);
   return aktualisiere;
 }

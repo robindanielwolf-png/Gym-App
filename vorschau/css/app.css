@@ -409,3 +409,41 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .btn.plain.mehr-anzeigen{width:auto;margin:4px auto 0;padding:0 16px;display:flex}
 .verlauf-hinweis-lang{padding:4px 32px 0}
 .aktionen{display:flex;flex-direction:column;gap:8px;padding-top:16px}
+
+/* 0.5.0: Tab Start mit 3D-Figur (Backlog #25–27, Design Screen 15) */
+.figur-karte{background:var(--surface);border-radius:var(--r-card);margin:8px 16px 0;padding:14px 16px 12px}
+.figur-karte .card-head{display:flex;justify-content:space-between;align-items:baseline}
+.figur-karte .k{font-size:13px;line-height:18px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.3px}
+.figur-karte .sub{font-size:13px;line-height:18px;color:var(--text-2)}
+.figur3d{position:relative;height:520px;margin:4px -8px 0;touch-action:none;overflow:hidden}
+.figur3d canvas{display:block;width:100%;height:100%}
+.figur3d .figur-paar{height:100%;align-items:center}
+.figur3d-platz{position:absolute;inset:0;display:grid;place-items:center;font-size:15px;line-height:20px;color:var(--text-2)}
+
+/* 0.5.0: Tab Mehr (Backlog #16, Design Screen 13/14) */
+.mehr-rahmen{position:absolute;inset:0}
+.quelle-zeile{min-height:0;padding:12px 16px;align-items:flex-start}
+.quelle-text{font-size:15px;line-height:20px;color:var(--text)}
+.quelle-link{color:var(--accent)}
+
+/* 0.5.0: Rekorde mit Hauptübungen (Backlog #33, Design Screen 09) */
+.rk-suche{margin:8px 16px 12px}
+.rk-liste{display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.rk-karte{background:var(--surface);border-radius:var(--r-card);margin:0 16px;padding:14px 16px 12px}
+.rk-kopf{display:flex;align-items:center;gap:8px}
+.rk-name{flex:1;min-width:0;text-align:left;font-size:17px;line-height:22px;font-weight:600;overflow-wrap:anywhere;padding:6px 0}
+.rk-stern{width:44px;height:44px;margin:-8px -10px -8px 0;display:grid;place-items:center;color:var(--accent);flex:none}
+.rk-stern svg.i{width:24px;height:24px}
+.rk-stern.on svg.i{fill:currentColor}
+.rk-wert{font-size:28px;line-height:34px;font-weight:700;margin-top:4px}
+.rk-unter{font-size:15px;line-height:20px;color:var(--text-2)}
+.rk-grafik{margin-top:10px;cursor:pointer}
+.rk-chart{display:block;width:100%;height:auto;font-family:var(--font)}
+.rk-chart .rk-raster line{stroke:var(--fill);stroke-width:1}
+.rk-chart text{font-size:10px;fill:var(--text-2)}
+.rk-linie{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.rk-punkt{fill:var(--accent)}
+.rk-letzter{fill:#fff;stroke:var(--accent);stroke-width:2.5}
+.rk-seg{margin:12px 0 0}
+.rk-zeile{padding-right:8px}
+.rk-name-knopf{flex:1;min-width:0;text-align:left;font-size:17px;line-height:22px;padding:16px 0}
