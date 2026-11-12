@@ -415,7 +415,7 @@ button.chip::after{content:"";position:absolute;inset:-6px -3px}
 .figur-karte .card-head{display:flex;justify-content:space-between;align-items:baseline}
 .figur-karte .k{font-size:13px;line-height:18px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.3px}
 .figur-karte .sub{font-size:13px;line-height:18px;color:var(--text-2)}
-.figur3d{position:relative;height:520px;margin:4px -8px 0;touch-action:none;overflow:hidden}
+.figur3d{position:relative;height:520px;margin:4px -8px 0;touch-action:pan-y;overflow:hidden}
 .figur3d canvas{display:block;width:100%;height:100%}
 .figur3d .figur-paar{height:100%;align-items:center}
 .figur3d-platz{position:absolute;inset:0;display:grid;place-items:center;font-size:15px;line-height:20px;color:var(--text-2)}

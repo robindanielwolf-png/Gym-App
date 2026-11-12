@@ -95,8 +95,7 @@ export async function baueFigur(stage, stufen, beiVerlust) {
   steuerung.enableDamping = true;
   steuerung.dampingFactor = 0.08;
   steuerung.rotateSpeed = 0.9;
-  steuerung.minPolarAngle = Math.PI * 0.32;
-  steuerung.maxPolarAngle = Math.PI * 0.62;
+  // Ab 0.5.0-3 nur seitlich drehbar: Neigung wird unten auf den Startwinkel festgelegt.
   const dist = groesse.y / 2 / Math.tan(THREE.MathUtils.degToRad(kamera.fov / 2)) * 1.04;
   steuerung.target.copy(mitte);
   steuerung.minDistance = dist * 0.45;
@@ -109,6 +108,14 @@ export async function baueFigur(stage, stufen, beiVerlust) {
     mitte.z + Math.cos(winkel) * dist
   );
   steuerung.update();
+  // Nur einmal im Kreis um die Person: Polarwinkel = Startwinkel, Azimut bleibt unbegrenzt (Standard von OrbitControls).
+  const startPhi = steuerung.getPolarAngle();
+  steuerung.minPolarAngle = startPhi;
+  steuerung.maxPolarAngle = startPhi;
+  steuerung.update();
+  // OrbitControls setzt touch-action selbst auf „none“. Mit „pan-y“ bleibt senkrechtes Wischen
+  // beim Scrollen der Seite; waagerechtes Wischen dreht die Figur (Pointer-Events, kein preventDefault).
+  steuerung.domElement.style.touchAction = 'pan-y';
 
   faerbe(meshes, stufen);
 
