@@ -7,6 +7,7 @@ import { istCardio, istNurWdh, istZeit, istZusatz } from './logik.js';
 import { einerMax, rekorde } from './regeln.js';
 import { einmalig, griff, h, icon, leerHinweis, oeffneSheet, sheetKopf, zeigeHinweis } from './ui.js';
 import { achse, messart, oeffneUebungsdetail, trainingsDerUebung } from './uebungsdetail.js';
+import { WDH_UEBUNGEN, wdhKarte, wdhLetzte14 } from './wdh-verlauf.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // Vorbelegung, solange noch nichts gewählt ist (IDs aus startdaten.js).
@@ -176,7 +177,8 @@ export function initRekorde(slot) {
       h('div', { class: 'rk-wert', text: k.wert }),
       h('div', { class: 'rk-unter', text: k.unter }),
       pk.length > 0 && h('div', { class: 'rk-grafik', onclick: () => oeffneUebungsdetail(daten, u) }, minidiagramm(pk, art)),
-      umschalter);
+      umschalter,
+      WDH_UEBUNGEN.includes(u.id) && wdhKarte(wdhLetzte14(daten, u.id)));
   };
 
   const hauptTeil = () => {
