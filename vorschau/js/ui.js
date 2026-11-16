@@ -274,7 +274,9 @@ export function zeigeHinweis({ titel, text = '', iconName = 'i-check', einzeilig
   const el = h('div', { class: `banner ${einzeilig ? 'einzeilig' : ''}`.trim(), role: 'status' },
     h('div', { class: 'ico' }, icon(iconName)),
     h('div', { class: 'banner-text' }, h('b', { text: titel }), text && h('span', { text })));
-  el.addEventListener('click', () => weg());
+  // 0.5.3-2: Antippen schließt den Banner; liegt darunter ein Knopf der Kopfzeile (Zurück, Art ändern,
+  // Sicherung, ✕), wird er im selben Tipp ausgelöst. So blockiert der Banner nie die Navigation.
+  el.addEventListener('click', (ev) => { weg(); leiteAnKopfzeileWeiter(el, ev.clientX, ev.clientY); });
 
   let timer;
   const weg = () => {
@@ -291,6 +293,14 @@ export function zeigeHinweis({ titel, text = '', iconName = 'i-check', einzeilig
   el.classList.add('offen');
   wischen(el, el, -1, weg);
   timer = setTimeout(weg, dauer);
+}
+
+function leiteAnKopfzeileWeiter(banner, x, y) {
+  banner.style.pointerEvents = 'none';
+  const darunter = document.elementFromPoint(x, y);
+  banner.style.pointerEvents = '';
+  const knopf = darunter?.closest('.navbar button, .title-row button, .sheet-head button');
+  if (knopf && !knopf.disabled && !banner.contains(knopf)) knopf.click();
 }
 
 /** Meldung, wenn Speichern nach Zeitlimit und Wiederholung nicht geklappt hat (Design 0.5.2, Punkt 2). */

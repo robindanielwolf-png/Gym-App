@@ -12,16 +12,18 @@ const ERFOLG_MS = 1000;
  * kontext: { trainingId, heute(uebungId), letztesMal, speichere(store, eintrag), loesche(store, eintrag),
  *   merke(entwurf), pruefeRekord(store, eintrag), koerpergewicht(), setzeKoerpergewicht(kg),
  *   kgGefragt(), markiereKgGefragt() }
+ * 0.5.3 (#37) optional: ohneVorschlag (Bearbeiten: keine Vorschlags-/„Letztes Mal“-Zeile),
+ *   loeschZusatz(store, eintrag) → Zusatzsatz für die Rückfrage „Satz löschen?“ oder null.
  */
 export function oeffneSatz({ uebung, kontext, bearbeite = null, entwurf = null }) {
   if (istCardio(uebung)) oeffneCardio({ uebung, kontext, bearbeite, entwurf });
   else oeffneKraft({ uebung, kontext, bearbeite, entwurf });
 }
 
-function frageLoeschen(uebung, eintrag, nummer) {
+function frageLoeschen(uebung, eintrag, nummer, zusatz = null) {
   return zeigeAlert({
     titel: 'Satz löschen?',
-    text: `Satz ${nummer} von ${uebung.name} ${satzBeschreibung(uebung, eintrag)} wird gelöscht.`,
+    text: `Satz ${nummer} von ${uebung.name} ${satzBeschreibung(uebung, eintrag)} wird gelöscht.${zusatz ? ` ${zusatz}` : ''}`,
     knoepfe: [{ id: 'nein', label: 'Abbrechen', fett: true }, { id: 'ja', label: 'Löschen', rot: true }]
   });
 }
@@ -47,7 +49,7 @@ function bearbeitenKnoepfe({ uebung, kontext, store, bearbeite, nummer, schliess
     class: 'btn danger-text', type: 'button', text: 'Satz löschen',
     onclick: async () => {
       if (laeuft.aktiv) return;
-      if (await frageLoeschen(uebung, bearbeite, nummer) !== 'ja') return;
+      if (await frageLoeschen(uebung, bearbeite, nummer, kontext.loeschZusatz?.(store, bearbeite)) !== 'ja') return;
       laeuft.setze();
       try {
         await kontext.loesche(store, bearbeite);
@@ -290,7 +292,7 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
 
   const kopf = bearbeite
     ? [h('p', { class: 'hint', text: `Satz ${nummer} ändern` })]
-    : [vorschlagZeile(vor), (() => { const t = letztesMalText(uebung, kontext.letztesMal); return t && h('p', { class: 'hint', text: t }); })()];
+    : kontext.ohneVorschlag ? [] : [vorschlagZeile(vor), (() => { const t = letztesMalText(uebung, kontext.letztesMal); return t && h('p', { class: 'hint', text: t }); })()];
 
   oeffneSheet({
     klasse: 'mit-boden satz-sheet',
@@ -437,7 +439,7 @@ function oeffneCardio({ uebung, kontext, bearbeite, entwurf }) {
         });
         aktion = [speichern];
       }
-      const hinweis = bearbeite ? `Satz ${nummer} ändern` : letztesMalText(uebung, kontext.letztesMal);
+      const hinweis = bearbeite ? `Satz ${nummer} ändern` : kontext.ohneVorschlag ? null : letztesMalText(uebung, kontext.letztesMal);
       return [
         griff(),
         sheetKopf(uebung.name, schliessen),

@@ -2,15 +2,17 @@
 // Vorschau, Check-in erst mit „Training starten“, Zurück, Art ändern, Verwerfen, Beenden, Auto-Ende.
 // Das laufende Training steht sofort in IndexedDB. 0.5.2: Speicherstatus, Rückfrage beim Beenden,
 // Ende-Datum zuerst sicher schreiben, Nebenschritte danach ohne Sperre, kein Zurück-Wischen mehr.
+// 0.5.3: „Training fortführen“ (#36) und dieselbe Ansicht im Modus „bearbeiten“ für beendete
+// Trainings aus dem Verlauf (#37): ohne „läuft seit“, Vorschlag, Rekord-Hinweis und Entwurf, unten „Fertig“.
 import * as db from './db.js';
-import { datumKurz, tageText, uhrzeit } from './format.js';
+import { datumKurz, tageText, tagKurz, uhrzeit } from './format.js';
 import {
-  chipText, eintraegeVon, faelligesEnde, karteVorschlagText, letzteUebungen, letztesMalIndex, letztesTrainingDerArt,
-  nachZeit, vorschauText, zuletztProArt
+  FORTFUEHREN_MS, chipText, eintraegeVon, faelligesEnde, fortfuehrbar, karteVorschlagText, letzteUebungen, letztesMalIndex,
+  letztesTrainingDerArt, nachZeit, vorschauText, zuletztProArt
 } from './logik.js';
 import { alsNaechstesDran, neueRekorde, rekordHinweis } from './regeln.js';
 import { oeffneSatz } from './satz.js';
-import { setzeArten, zeigeTab } from './tabs.js';
+import { registerTabActivation, setzeArten, zeigeTab } from './tabs.js';
 import { protokolliere } from './fehlerprotokoll.js';
 import { zeigeTrainingsUebersicht } from './muskel-figur.js';
 import { aktualisierePunkt, frageJetztSichern } from './sicherung-sheet.js';
@@ -35,21 +37,39 @@ let vorschauFuss;
 
 let daten = null;
 let laufend = null; // laufendes Training oder null
-let lauf = null; // nur wenn 02 offen: { training, arten, uebungen: Map, letztesMal: Map }
+// nur wenn 02 offen: { modus: 'laufend' | 'bearbeiten', training, arten, uebungen: Map, letztesMal: Map,
+// auswahl: Map („zuletzt“ in der Übungsauswahl) }
+let lauf = null;
+let fussKnopf;
+const imBearbeiten = () => lauf?.modus === 'bearbeiten';
+const LETZTER_SATZ_TEXT = 'Das ist der letzte Satz. Dann wird das Training gelöscht.';
 let pruefTimer = null;
+let fortfuehrenTimer = null; // blendet die Zeile „Training fortführen“ genau nach 60 Min. aus
+// E10 (Entscheidung a): „letztes Mal“ je Übung wird beim ersten Öffnen des laufenden Trainings
+// festgehalten und gilt bis zum Beenden bzw. App-Neustart (nur im Speicher der Sitzung).
+let festVorschlag = null; // { trainingId, letztesMal: Map }
 let kgGefragt = false; // automatische Abfrage des Körpergewichts schon gezeigt
 
 export function initTraining(app) {
   trainingInhalt = h('div', { class: 'training-scroll' });
+  fussKnopf = h('button', {
+    class: 'btn primary', type: 'button', text: 'Training beenden',
+    onclick: () => { if (imBearbeiten()) schliesseBearbeiten(); else beenden(); }
+  });
   trainingAnsicht = h('div', { class: 'push-ansicht training-ansicht', hidden: true }, trainingInhalt,
-    h('div', { class: 'bottom-bar' },
-      h('button', { class: 'btn primary', type: 'button', text: 'Training beenden', onclick: () => beenden() })));
+    h('div', { class: 'bottom-bar' }, fussKnopf));
   vorschauInhalt = h('div', { class: 'training-scroll' });
   vorschauFuss = h('div', { class: 'bottom-bar' });
   vorschauAnsicht = h('div', { class: 'push-ansicht vorschau-ansicht', hidden: true }, vorschauInhalt, vorschauFuss);
   app.append(vorschauAnsicht, trainingAnsicht);
   // 0.5.2 (V6): kein Zurück-Wischen vom linken Rand mehr; zurück nur über „‹ Training“.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) pruefeAutoEnde(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    pruefeAutoEnde();
+    if (daten) zeichneStart();
+  });
+  // #36: Die Minuten bei „Training fortführen“ werden beim Öffnen des Tabs neu berechnet (kein Timer).
+  registerTabActivation('training', () => { if (daten) zeichneStart(); });
 }
 
 /** Push von rechts (300 ms); bei „Bewegung reduzieren“ nur Überblenden (CSS). */
@@ -122,6 +142,18 @@ export async function ladeUndZeige({ start = false, ziel = null, fehlerAlert = t
   pruefTimer = laufend ? setInterval(pruefeAutoEnde, PRUEF_INTERVALL_MS) : null;
 
   zeichneStart();
+  // #37: Eine offene Bearbeiten-Ansicht bleibt offen und zeigt den neuen Stand.
+  if (imBearbeiten() && ziel !== 'training') {
+    const t = daten.trainings.find((x) => x.id === lauf.training.id);
+    if (t?.endedAt && eintraegeVon(daten, t.id).length > 0) {
+      lauf.training = t;
+      lauf.uebungen = new Map(daten.uebungen.map((u) => [u.id, u]));
+      zeichne();
+    } else {
+      schliesseBearbeiten();
+    }
+    return true;
+  }
   const entwurfPasst = Boolean(entwurf && laufend && entwurf.trainingId === laufend.id);
   let wohin = ziel;
   if (wohin === null) {
@@ -162,9 +194,47 @@ function zeichneStart() {
   };
   const zuletzt = zuletztProArt(daten);
   const naechste = laufend ? null : alsNaechstesDran(sortierteArten(), zuletzt);
+  const ff = laufend ? null : fortfuehrbar(daten);
+  const ffArt = ff && artVon(ff.training.artId);
+  clearTimeout(fortfuehrenTimer);
+  fortfuehrenTimer = ff ? setTimeout(zeichneStart, Date.parse(ff.training.endedAt) + FORTFUEHREN_MS - Date.now() + 50) : null;
   setzeArten(sortierteArten(), zuletzt, artAntippen, lauft || null,
-    naechste && { ...naechste, beiTipp: () => oeffneVorschau(naechste.art) });
+    naechste && { ...naechste, beiTipp: () => oeffneVorschau(naechste.art) },
+    ffArt ? { art: ffArt, minuten: ff.minuten, beiTipp: () => fortfuehren(ff.training.id) } : null);
 }
+
+/**
+ * #36: Ende-Datum entfernen, `fortgefuehrtAm` setzen – ein einziger Schreibvorgang, kein zweites
+ * Training. Klappt das Schreiben nicht, bleibt das Training beendet und der Hinweis erscheint.
+ */
+const fortfuehren = einmalig(async (trainingId) => {
+  if (laufend || lauf) return;
+  // F4: Beim Antippen erneut prüfen; nach 60 Min. wird nichts geschrieben und die Zeile verschwindet.
+  const ff = fortfuehrbar(daten);
+  if (ff?.training.id !== trainingId) {
+    zeichneStart();
+    zeigeHinweis({ titel: 'Zu spät zum Fortführen', text: 'Das Training ist seit über 60 Min. beendet.', iconName: 'i-alert', einzeilig: true });
+    return;
+  }
+  const training = ff.training;
+  festVorschlag = null;
+  const neu = { ...training, endedAt: null, fortgefuehrtAm: new Date().toISOString() };
+  try {
+    await db.speichereTraining(neu);
+  } catch {
+    zeigeSpeicherFehler();
+    return;
+  }
+  const i = daten.trainings.findIndex((t) => t.id === neu.id);
+  if (i >= 0) daten.trainings[i] = neu;
+  laufend = neu;
+  clearInterval(pruefTimer);
+  pruefTimer = setInterval(pruefeAutoEnde, PRUEF_INTERVALL_MS);
+  zeichneStart();
+  oeffneTraining();
+  // Verlauf, Start und Mehr laden beim nächsten Öffnen (das Training ist jetzt wieder laufend).
+  window.dispatchEvent(new Event('gym-daten-veraltet'));
+}, 'Training fortführen');
 
 function artAntippen(art) {
   if (laufend && laufend.artId === art.id) zumTraining();
@@ -183,8 +253,8 @@ function zurStartseite({ sofort = false } = {}) {
   zeigeEbene(vorschauAnsicht, false, { sofort });
 }
 
-const zurueckKnopf = (aktion) => h('button', { class: 'link zurueck', type: 'button', onclick: () => aktion() },
-  icon('i-back', 's24'), 'Training');
+const zurueckKnopf = (aktion, label = 'Training') => h('button', { class: 'link zurueck', type: 'button', onclick: () => aktion() },
+  icon('i-back', 's24'), label);
 
 // ---------- Trainingsvorschau (01a/01b) ----------
 
@@ -316,29 +386,78 @@ async function mitSpeicherstatus(arbeit) {
 
 // ---------- Laufendes Training (02) ----------
 
+/** „nicht gespeichert“ bleibt beim Wiederöffnen stehen, bis der nächste Versuch läuft (Design A3); nur bei einem anderen Training beginnt der Status leer. */
+function statusFuer(trainingId) {
+  const anderesTraining = statusTrainingId !== trainingId;
+  statusTrainingId = trainingId;
+  if (offeneSpeicherungen === 0 && (anderesTraining || speicherstatus.dataset.zustand !== 'fehler')) setzeSpeicherstatus('leer');
+}
+
 function oeffneTraining({ sofort = false } = {}) {
   if (!laufend) return;
+  if (festVorschlag?.trainingId !== laufend.id) festVorschlag = { trainingId: laufend.id, letztesMal: letztesMalIndex(daten, laufend.id) };
+  const { letztesMal } = festVorschlag;
   lauf = {
+    modus: 'laufend',
     training: laufend,
     arten: sortierteArten(),
     uebungen: new Map(daten.uebungen.map((u) => [u.id, u])),
-    letztesMal: letztesMalIndex(daten, laufend.id)
+    letztesMal,
+    auswahl: letztesMal
   };
   merkeAnsicht('training');
-  // „nicht gespeichert“ bleibt beim Wiederöffnen stehen, bis der nächste Versuch läuft (Design A3);
-  // nur bei einem anderen Training beginnt der Status leer.
-  const anderesTraining = statusTrainingId !== laufend.id;
-  statusTrainingId = laufend.id;
-  if (offeneSpeicherungen === 0 && (anderesTraining || speicherstatus.dataset.zustand !== 'fehler')) setzeSpeicherstatus('leer');
+  statusFuer(laufend.id);
   zeichne();
   zeigeEbene(trainingAnsicht, true, { sofort });
   vorschauUnterTrainingWeg();
 }
 
+/**
+ * #37: Beendetes Training aus dem Verlauf in der Trainings-Ansicht bearbeiten. Es bleibt beendet
+ * (startedAt, endedAt, fortgefuehrtAm unverändert). Kein Vorschlag (leeres letztesMal).
+ */
+export const oeffneBearbeiten = einmalig(async (trainingId) => {
+  if (lauf) return;
+  let frisch;
+  try {
+    frisch = await db.leseDaten();
+  } catch {
+    zeigeAlert(FEHLER_F2);
+    return;
+  }
+  daten = frisch;
+  laufend = daten.trainings.filter((t) => t.endedAt === null)
+    .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))[0] || null;
+  const training = daten.trainings.find((t) => t.id === trainingId);
+  if (!training?.endedAt || !artVon(training.artId)) return;
+  lauf = {
+    modus: 'bearbeiten',
+    training,
+    arten: sortierteArten(),
+    uebungen: new Map(daten.uebungen.map((u) => [u.id, u])),
+    letztesMal: new Map(),
+    auswahl: letztesMalIndex(daten)
+  };
+  statusFuer(training.id);
+  zeichneStart();
+  zeichne();
+  trainingInhalt.scrollTop = 0;
+  zeigeEbene(trainingAnsicht, true);
+}, 'Training bearbeiten');
+
+/** „‹ Verlauf“ und „Fertig“: ohne Rückfrage, alles ist schon gespeichert. */
+function schliesseBearbeiten() {
+  if (!imBearbeiten()) return;
+  lauf = null;
+  zeichneStart();
+  zeigeEbene(trainingAnsicht, false);
+}
+
 async function pruefeAutoEnde() {
   if (!laufend) return;
   if (!faelligesEnde(laufend, eintraegeVon(daten, laufend.id))) return;
-  schliesseAlles();
+  // Eine offene Bearbeiten-Ansicht (anderes Training) bleibt offen.
+  if (!imBearbeiten()) schliesseAlles();
   await ladeUndZeige({ ziel: 'start' });
 }
 
@@ -347,15 +466,17 @@ const heute = (uebungId) => eintraege().filter((e) => e.uebungId === uebungId).s
 
 function setzeTraining(training) {
   lauf.training = training;
-  laufend = training;
+  if (!imBearbeiten()) laufend = training;
   const i = daten.trainings.findIndex((t) => t.id === training.id);
   if (i >= 0) daten.trainings[i] = training;
 }
 
 function kontextFuer(uebung) {
+  const bearbeiten = imBearbeiten();
   return {
     trainingId: lauf.training.id,
     letztesMal: lauf.letztesMal.get(uebung.id),
+    ohneVorschlag: bearbeiten,
     heute,
     async speichere(store, eintrag) {
       await mitSpeicherstatus(() => db.speichereEintrag(store, eintrag));
@@ -367,17 +488,31 @@ function kontextFuer(uebung) {
       window.dispatchEvent(new Event('gym-daten-veraltet'));
     },
     async loesche(store, eintrag) {
+      // #37 (E-R5): Der letzte Satz eines beendeten Trainings löscht nach der Rückfrage das Training.
+      if (bearbeiten && istLetzterEintrag(eintrag)) {
+        const id = lauf.training.id;
+        await db.loescheTraining(id);
+        daten.trainings = daten.trainings.filter((t) => t.id !== id);
+        daten.saetze = daten.saetze.filter((e) => e.trainingId !== id);
+        daten.cardio = daten.cardio.filter((e) => e.trainingId !== id);
+        schliesseBearbeiten();
+        window.dispatchEvent(new Event('gym-daten-veraltet'));
+        return;
+      }
       await db.loescheEintrag(store, eintrag.id);
       daten[store] = daten[store].filter((e) => e.id !== eintrag.id);
       zeichne();
       window.dispatchEvent(new Event('gym-daten-veraltet'));
     },
+    loeschZusatz: (store, eintrag) => (bearbeiten && istLetzterEintrag(eintrag) ? LETZTER_SATZ_TEXT : null),
     merke(entwurf) {
+      // Der Entwurfspeicher gehört nur zum laufenden Training (Design 0.5.3, Punkt 2).
+      if (bearbeiten) return;
       db.setzeEntwurfSatz(entwurf && { ...entwurf, trainingId: lauf.training.id }).catch(() => {});
     },
-    /** Rekord-Hinweis nach einem neuen Arbeitssatz; nicht beim ersten Mal der Übung. */
+    /** Rekord-Hinweis nach einem neuen Arbeitssatz; nicht beim ersten Mal der Übung, nie beim Bearbeiten. */
     pruefeRekord(store, eintrag) {
-      if (eintrag.aufwaermen || !lauf?.letztesMal.get(uebung.id)) return;
+      if (bearbeiten || eintrag.aufwaermen || !lauf?.letztesMal.get(uebung.id)) return;
       const vorher = daten[store].filter((e) => e.uebungId === uebung.id && e.id !== eintrag.id);
       const hinweis = rekordHinweis(uebung, neueRekorde(uebung, vorher, eintrag));
       if (hinweis) zeigeHinweis({ ...hinweis, iconName: 'i-trophy', einzeilig: true });
@@ -392,12 +527,17 @@ function kontextFuer(uebung) {
         zeigeSpeicherFehler();
       });
     },
-    kgGefragt: () => kgGefragt,
+    kgGefragt: () => bearbeiten || kgGefragt,
     markiereKgGefragt() {
       kgGefragt = true;
       db.setzeKoerpergewichtGefragt().catch(() => {});
     }
   };
+}
+
+function istLetzterEintrag(eintrag) {
+  const alle = eintraege();
+  return alle.length === 1 && alle[0].id === eintrag.id;
 }
 
 function aktuellesKoerpergewicht() {
@@ -421,6 +561,8 @@ function stelleEntwurfWiederHer(entwurf) {
 async function speichereTraining(neu, alt) {
   try {
     await mitSpeicherstatus(() => db.speichereTraining(neu));
+    // Bearbeiten: Art/Übungen eines beendeten Trainings geändert, Verlauf und Start laden beim Öffnen.
+    if (lauf?.modus === 'bearbeiten') window.dispatchEvent(new Event('gym-daten-veraltet'));
   } catch {
     if (lauf?.training === neu) {
       setzeTraining(alt);
@@ -434,7 +576,7 @@ function hinzufuegen() {
   oeffneHinzufuegen({
     art: artVon(lauf.training.artId),
     uebungen: [...lauf.uebungen.values()],
-    letztesMal: lauf.letztesMal,
+    letztesMal: lauf.auswahl,
     beiNeu: (u) => {
       lauf.uebungen.set(u.id, u);
       daten.uebungen.push(u);
@@ -452,9 +594,9 @@ function hinzufuegen() {
 }
 
 function karte(uebung) {
-  const wert = karteVorschlagText(uebung, lauf.letztesMal.get(uebung.id));
+  const wert = imBearbeiten() ? null : karteVorschlagText(uebung, lauf.letztesMal.get(uebung.id));
   return h('div', { class: 'ex', 'data-uebung': uebung.id },
-    h('div', { class: 'top' }, h('b', { text: uebung.name }), h('small', { text: wert })),
+    h('div', { class: 'top' }, h('b', { text: uebung.name }), wert && h('small', { text: wert })),
     h('div', { class: 'sets' },
       heute(uebung.id).map((e) => h('button', {
         class: `chip ${e.aufwaermen ? 'warm' : ''}`.trim(), type: 'button', text: chipText(uebung, e),
@@ -469,14 +611,19 @@ function zeichne() {
   const art = artVon(t.artId);
   const uebungen = t.uebungIds.map((id) => lauf.uebungen.get(id)).filter(Boolean);
   const hinzuKnopf = h('button', { class: 'btn secondary', type: 'button', onclick: hinzufuegen }, icon('i-plus'), 'Übung hinzufügen');
+  const bearbeiten = imBearbeiten();
+  fussKnopf.textContent = bearbeiten ? 'Fertig' : 'Training beenden';
 
   trainingInhalt.replaceChildren(
     h('div', { class: 'navbar' },
-      zurueckKnopf(zurStartseite),
+      bearbeiten ? zurueckKnopf(schliesseBearbeiten, 'Verlauf') : zurueckKnopf(zurStartseite),
       h('button', { class: 'link', type: 'button', text: 'Art ändern', onclick: artAendern })),
     h('h1', { class: 'largetitle', text: art.name }),
-    h('div', { class: 'subtitle running' }, h('span', { class: 'dot' }),
-      h('span', { class: 'laeuft-seit', text: `läuft seit ${uhrzeit(t.startedAt)}` }), speicherstatus),
+    bearbeiten
+      ? h('div', { class: 'subtitle bearbeiten' },
+        h('span', { class: 'laeuft-seit', text: `${tagKurz(t.startedAt)} · ${uhrzeit(t.startedAt)}–${uhrzeit(t.endedAt)}` }), speicherstatus)
+      : h('div', { class: 'subtitle running' }, h('span', { class: 'dot' }),
+        h('span', { class: 'laeuft-seit', text: `läuft seit ${uhrzeit(t.startedAt)}` }), speicherstatus),
     ...(uebungen.length === 0
       ? [
         h('div', { class: 'abstand-32' }),
@@ -551,6 +698,7 @@ const beendenSpeichern = einmalig(async () => {
   const i = daten.trainings.findIndex((t) => t.id === beendet.id);
   if (i >= 0) daten.trainings[i] = beendet;
   laufend = null;
+  festVorschlag = null;
   clearInterval(pruefTimer);
   pruefTimer = null;
   zurStartseite();

@@ -1,7 +1,7 @@
 // Service Worker: legt alle App-Dateien in einen Cache und liefert sie offline aus.
 // Version und Stand immer gemeinsam ändern mit js/version.js und den versionierten
 // Modul-URLs (?v=) samt CSP-Hash der Import-Map in index.html.
-const VERSION = '0.5.2';
+const VERSION = '0.5.3';
 // Stand innerhalb einer Version: bei jeder Dateiänderung erhöhen, damit der Cache sicher neu lädt.
 const STAND = 2;
 
