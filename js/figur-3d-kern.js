@@ -120,8 +120,11 @@ export async function baueFigur(stage, stufen, beiVerlust) {
   faerbe(meshes, stufen);
 
   // Gezeichnet wird nur bei Änderung (Drehen, Stufen, Größe). Ohne Bewegung läuft kein Bild-Takt.
+  // 0.5.2 (F4): pausiert = Start nicht sichtbar oder App im Hintergrund; es wird nichts gezeichnet,
+  // die Figur bleibt aber aufgebaut und zeichnet beim Weiterlaufen den letzten Stand.
   let frame = 0;
   let lebt = true;
+  let pausiert = false;
   let neuZeichnen = true;
   const bild = () => {
     frame = 0;
@@ -135,14 +138,18 @@ export async function baueFigur(stage, stufen, beiVerlust) {
   };
   const plane = () => {
     neuZeichnen = true;
-    if (!frame && lebt) frame = requestAnimationFrame(bild);
+    if (!frame && lebt && !pausiert) frame = requestAnimationFrame(bild);
   };
   steuerung.addEventListener('change', plane);
 
+  const bisher = new THREE.Vector2();
   const groesseAnpassen = () => {
     const w = stage.clientWidth;
     const h = stage.clientHeight;
     if (!w || !h) return;
+    // Gleiche Größe (z. B. Tab wieder sichtbar): Canvas nicht neu setzen, das würde es leeren.
+    renderer.getSize(bisher);
+    if (bisher.x === w && bisher.y === h) { plane(); return; }
     renderer.setSize(w, h, false);
     kamera.aspect = w / h;
     kamera.updateProjectionMatrix();
@@ -164,6 +171,17 @@ export async function baueFigur(stage, stufen, beiVerlust) {
       faerbe(meshes, neue);
       plane();
     },
+    /** true: nicht zeichnen (Tab verlassen, Hintergrund). false: weiter, zeichnet einmal neu. */
+    pausiere(ja) {
+      pausiert = Boolean(ja);
+      if (pausiert) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      } else {
+        plane();
+      }
+    },
+    /** Nur nach echtem Kontextverlust: räumt auf, ohne den (schon verlorenen) Kontext anzufassen. */
     dispose() {
       if (!lebt) return;
       lebt = false;
@@ -172,8 +190,7 @@ export async function baueFigur(stage, stufen, beiVerlust) {
       steuerung.dispose();
       szene.remove(modellSzene);
       renderer.domElement.removeEventListener('webglcontextlost', verlust);
-      renderer.dispose();
-      renderer.forceContextLoss();
+      try { renderer.dispose(); } catch { /* Kontext schon weg */ }
       renderer.domElement.remove();
     }
   };

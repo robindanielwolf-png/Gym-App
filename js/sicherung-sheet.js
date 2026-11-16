@@ -283,4 +283,4 @@ export const oeffneSicherung = einmalig(async () => {
     ]
   });
   aktualisiereAnzeige();
-});
+}, 'Sicherung öffnen');

@@ -34,12 +34,15 @@ function ansichtTraining() {
  * alle Arten mit „zuletzt“ bzw. „läuft“. Zeile antippen öffnet die Vorschau.
  * laufend: null oder { art, nebentext, beiFortsetzen } für die Zeile „<Art> läuft“.
  * naechste: null oder { art, zuletzt, beiTipp } für die Karte.
+ * fortfuehren (0.5.3, #36): null oder { art, minuten, beiTipp } für die Zeile „Training fortführen“
+ *   an derselben Stelle; nur ohne laufendes Training.
  */
-export function setzeArten(arten, zuletzt, beiTipp, laufend = null, naechste = null) {
-  fortsetzen.hidden = !laufend;
+export function setzeArten(arten, zuletzt, beiTipp, laufend = null, naechste = null, fortfuehren = null) {
+  if (laufend) fortfuehren = null;
+  fortsetzen.hidden = !laufend && !fortfuehren;
   naechsteKarte.hidden = !naechste;
   artenTitel.textContent = naechste ? 'Oder Trainingsart wählen' : 'Trainingsart wählen';
-  artenTitel.classList.toggle('oben-16', !laufend && !naechste);
+  artenTitel.classList.toggle('oben-16', !laufend && !fortfuehren && !naechste);
   if (naechste) {
     const tage = tageText(naechste.zuletzt);
     naechsteKarte.onclick = naechste.beiTipp;
@@ -61,6 +64,14 @@ export function setzeArten(arten, zuletzt, beiTipp, laufend = null, naechste = n
         h('div', { class: 't fett', text: `${laufend.art.name} läuft` }),
         h('div', { class: 'st mit-punkt' }, h('span', { class: 'dot' }), laufend.nebentext)),
       h('span', { class: 'weiter' }, 'Fortsetzen', icon('i-chev', 's16'))));
+  } else if (fortfuehren) {
+    const vor = fortfuehren.minuten < 1 ? 'beendet gerade eben' : `beendet vor ${fortfuehren.minuten} Min.`;
+    fortsetzen.replaceChildren(h('button', { class: 'row fortfuehren', type: 'button', onclick: fortfuehren.beiTipp },
+      kachel(fortfuehren.art.icon),
+      h('div', { class: 'main' },
+        h('div', { class: 't fett', text: 'Training fortführen' }),
+        h('div', { class: 'st', text: `${fortfuehren.art.name} · ${vor}` })),
+      icon('i-chev', 's16 chev')));
   }
   artenListe.replaceChildren(...arten.map((a) =>
     h('button', { class: 'row', type: 'button', 'data-art': a.id, onclick: () => beiTipp(a) },
@@ -105,6 +116,17 @@ function rufeAuf(liste, arg) {
   }
 }
 
+let tabZeigen = null;
+let aktuellerTabId = null;
+
+/** Id des offenen Tabs ('start' | 'training' | 'verlauf' | 'mehr'). */
+export const aktuellerTab = () => aktuellerTabId;
+
+/** Öffnet einen Tab wie per Antippen (z. B. beim App-Start mit laufendem Training). */
+export function zeigeTab(id) {
+  if (tabZeigen && aktuellerTabId !== id) tabZeigen(id);
+}
+
 export function baueTabs(wurzel) {
   const ansichten = {
     start: h('div', { class: 'view start-view', hidden: true, id: 'start-ansicht' }),
@@ -119,6 +141,7 @@ export function baueTabs(wurzel) {
   const zeige = (id, nochmal = false) => {
     if (aktuell && aktuell !== id) rufeAuf(tabVerlassenCallbacks.get(aktuell));
     aktuell = id;
+    aktuellerTabId = id;
     for (const t of TABS) {
       ansichten[t.id].hidden = t.id !== id;
       knoepfe[t.id].classList.toggle('on', t.id === id);
@@ -134,5 +157,6 @@ export function baueTabs(wurzel) {
   }
 
   wurzel.append(...Object.values(ansichten), h('nav', { class: 'tabbar' }, Object.values(knoepfe)));
+  tabZeigen = (id) => zeige(id);
   zeige('start');
 }

@@ -154,13 +154,30 @@ export function satzBeschreibung(uebung, e) {
 }
 
 /**
- * Prüft das Auto-Ende: 3 Std. nach dem letzten Eintrag (ohne Eintrag: nach Beginn).
- * Liefert null oder { leer, endedAt }.
+ * Prüft das Auto-Ende: 3 Std. nach dem Spätesten von Beginn, letztem Eintrag und Fortführen
+ * (0.5.3, F-R3; ohne Fortführen wie bisher). Liefert null oder { leer, endedAt }.
  */
 export function faelligesEnde(training, eintraege, jetzt = Date.now()) {
-  const bezug = Math.max(zeit(training.startedAt), ...eintraege.map((e) => zeit(e.erstelltAm)));
+  const bezug = Math.max(zeit(training.startedAt), zeit(training.fortgefuehrtAm), ...eintraege.map((e) => zeit(e.erstelltAm)));
   if (jetzt - bezug < AUTO_ENDE_MS) return null;
   return { leer: eintraege.length === 0, endedAt: new Date(bezug + AUTO_ENDE_MS).toISOString() };
+}
+
+export const FORTFUEHREN_MS = 60 * 60 * 1000;
+
+/**
+ * 0.5.3 (#36, F-R1): Das Training mit dem jüngsten Ende (mit Einträgen), wenn es höchstens
+ * 60 Min. her ist und kein Training läuft. Liefert null oder { training, minuten }.
+ */
+export function fortfuehrbar(daten, jetzt = Date.now()) {
+  if (daten.trainings.some((t) => t.endedAt === null)) return null;
+  const ids = new Set([...daten.saetze, ...daten.cardio].map((e) => e.trainingId));
+  const juengstes = daten.trainings.filter((t) => t.endedAt && ids.has(t.id))
+    .sort((a, b) => zeit(b.endedAt) - zeit(a.endedAt))[0];
+  if (!juengstes) return null;
+  const her = jetzt - zeit(juengstes.endedAt);
+  if (her >= FORTFUEHREN_MS) return null;
+  return { training: juengstes, minuten: Math.max(0, Math.floor(her / 60000)) };
 }
 
 /**

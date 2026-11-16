@@ -8,6 +8,7 @@ import { chipText, nachZeit } from './logik.js';
 import { oeffneSatz } from './satz.js';
 import { baueTrainingsFigur } from './muskel-figur.js';
 import { oeffneUebungsdetail } from './uebungsdetail.js';
+import { oeffneBearbeiten } from './training.js';
 import { h, icon, oeffneSheet, sheetKopf, griff, einmalig, leerHinweis, zeigeAlert, zeigeHinweis } from './ui.js';
 
 /**
@@ -30,6 +31,8 @@ function trainingNachDatum(daten) {
   const sortiert = [...daten.trainings].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
   for (const training of sortiert) {
     if (!mitEintraegen.has(training.id)) continue;
+    // 0.5.3-2: Laufende Trainings erscheinen erst nach dem Beenden im Verlauf (auch nicht im Kalender).
+    if (!training.endedAt) continue;
     // Lokales Datum (nicht UTC), sonst landet ein Training kurz nach Mitternacht am Vortag
     if (!training.startedAt) continue;
     const d = new Date(training.startedAt);
@@ -116,12 +119,24 @@ function kontextFuerAltes(zustand, trainingId, beiAenderung) {
     window.dispatchEvent(new Event('gym-daten-geaendert'));
     await beiAenderung();
   };
+  // 0.5.3 (E-R5): Der letzte Satz eines beendeten Trainings löscht nach der Rückfrage das Training.
+  const istLetzter = (eintrag) => {
+    const alle = eintraegeVonTraining(zustand.daten, trainingId);
+    const training = zustand.daten.trainings.find((t) => t.id === trainingId);
+    return Boolean(training?.endedAt) && alle.length === 1 && alle[0].id === eintrag.id;
+  };
   return {
     trainingId,
     letztesMal: null,
+    ohneVorschlag: true,
     heute: (uebungId) => eintraegeVonTraining(zustand.daten, trainingId).filter((e) => e.uebungId === uebungId).sort(nachZeit),
     async speichere(store, eintrag) { await db.speichereEintrag(store, eintrag); await geaendert(); },
-    async loesche(store, eintrag) { await db.loescheEintrag(store, eintrag.id); await geaendert(); },
+    async loesche(store, eintrag) {
+      if (istLetzter(eintrag)) await db.loescheTraining(trainingId);
+      else await db.loescheEintrag(store, eintrag.id);
+      await geaendert();
+    },
+    loeschZusatz: (store, eintrag) => (istLetzter(eintrag) ? 'Das ist der letzte Satz. Dann wird das Training gelöscht.' : null),
     merke() {},
     pruefeRekord() {},
     koerpergewicht: () => {
@@ -170,7 +185,12 @@ function trainingsBlock(zustand, training, aktualisiere) {
             'aria-label': `Satz ändern: ${chipText(uebung, e)}`,
             onclick: () => oeffneSatz({ uebung, kontext: kontextFuerAltes(zustand, training.id, aktualisiere), bearbeite: e })
           }))));
-    })));
+    })),
+    // #37: Bearbeiten nur für beendete Trainings; das Tages-Sheet schließt vorher.
+    training.endedAt && h('button', {
+      class: 'btn secondary verlauf-bearbeiten', type: 'button', text: 'Training bearbeiten',
+      onclick: () => { zustand.zu?.(); oeffneBearbeiten(training.id); }
+    }));
 }
 
 /** Tages-Sheet: alle Trainings des Tages; Sätze antippen zum Ändern oder Löschen. */
@@ -192,7 +212,10 @@ function oeffneTagesDetail(datenStart, trainings) {
   fuelle();
   oeffneSheet({
     klasse: 'verlauf-sheet',
-    baue: (zu) => [griff(), sheetKopf(datumLang(trainings[0].startedAt), zu), inhalt]
+    baue: (zu) => {
+      zustand.zu = zu;
+      return [griff(), sheetKopf(datumLang(trainings[0].startedAt), zu), inhalt];
+    }
   });
 }
 
@@ -238,7 +261,7 @@ function trainingBeschreibung(daten, training) {
   return `${uebungen} ${uebungen === 1 ? 'Übung' : 'Übungen'} · ${eintraege.length} ${eintraege.length === 1 ? 'Satz' : 'Sätze'}`;
 }
 
-/** Aktionen nach langem Drücken: „Aktivität löschen“ mit Rückfrage (nicht rückgängig zu machen). */
+/** Aktionen nach langem Drücken: „Training bearbeiten“ (#37) und „Aktivität löschen“ mit Rückfrage. */
 function oeffneAktionen(daten, training, art) {
   const titel = `${art?.name || 'Training'} · ${datumLang(training.startedAt)}`;
   oeffneSheet({
@@ -247,6 +270,10 @@ function oeffneAktionen(daten, training, art) {
       sheetKopf(titel, zu),
       h('p', { class: 'foot-links', text: trainingBeschreibung(daten, training) }),
       h('div', { class: 'aktionen' },
+        h('button', {
+          class: 'btn secondary aktion-bearbeiten', type: 'button', text: 'Training bearbeiten',
+          onclick: () => { zu(); oeffneBearbeiten(training.id); }
+        }),
         h('button', {
           class: 'btn danger-text aktion-loeschen', type: 'button', text: 'Aktivität löschen',
           onclick: async () => {
@@ -293,7 +320,7 @@ function baueLetzteListe(daten, anzahl, beiMehr) {
     h('div', { class: 'section-h', text: 'Letzte Trainings' }),
     h('div', { class: 'list' }, zeilen),
     alle.length > anzahl && h('button', { class: 'btn plain mehr-anzeigen', type: 'button', text: 'Mehr anzeigen', onclick: beiMehr }),
-    h('p', { class: 'foot-links verlauf-hinweis-lang', text: 'Lange drücken, um eine Aktivität zu löschen.' })
+    h('p', { class: 'foot-links verlauf-hinweis-lang', text: 'Lange drücken: Training bearbeiten oder Aktivität löschen.' })
   ].filter(Boolean);
 }
 
@@ -385,10 +412,15 @@ export function initVerlauf() {
    * Update-Handler: Wird aufgerufen bei Tab-Aktivierung oder Datenänderung.
    */
   const updateHandler = einmalig(async () => {
-    datenGlobal = await db.leseDaten();
+    try {
+      datenGlobal = await db.leseDaten();
+    } catch (e) {
+      console.error('Verlauf konnte nicht geladen werden:', e);
+      return;
+    }
     zeichneKalender();
     zeichneLetzte();
-  });
+  }, 'Verlauf laden', { fensterSchliessen: false });
 
   // Registriere als Tab-Updater
   registerTabUpdater('verlauf', updateHandler);

@@ -1,10 +1,10 @@
 // Muskelfigur vorne/hinten (dunkle Variante, Design 11.11.2026): Tab „Start“ (letzte 7 Tage),
 // Verlauf → Tag und Übersicht nach „Training beenden“.
 import * as db from './db.js';
-import { h, icon, oeffneSheet, sheetKopf, griff } from './ui.js';
+import { beiUeberdeckt, h, icon, istUeberdeckt, oeffneSheet, sheetKopf, griff } from './ui.js';
 import { oeffneSicherung } from './sicherung-sheet.js';
 import { registerTabUpdater } from './tab-events.js';
-import { registerTabVerlassen } from './tabs.js';
+import { aktuellerTab, registerTabVerlassen } from './tabs.js';
 import { erstelleFigur } from './figur-3d.js';
 import { FIGUR_VORNE, FIGUR_HINTEN } from './muskel-figur-pfade.js';
 import { MUSKELN, MUSKELN_NACH, muskelPunkte, muskelStufe, trainingsDerLetztenTage } from './muskeln.js';
@@ -103,14 +103,16 @@ function zweiD(punkte) {
 
 /**
  * Tab „Start“ (0.5.0): Karte „Trainierte Muskeln · letzte 7 Tage“ mit der drehbaren 3D-Figur,
- * darunter Legende und Liste wie bisher. Lädt beim Öffnen und nach Datenänderungen; liefert die
- * Aktualisierung für den App-Start.
+ * darunter Legende und Liste wie bisher. Lädt beim Öffnen und nach Datenänderungen, solange Start
+ * sichtbar ist (sonst beim nächsten Öffnen, tab-events.js); liefert die Aktualisierung für den App-Start.
  */
 export function initStartseite() {
   const ansicht = document.getElementById('start-ansicht');
   const stage = h('div', { class: 'figur3d' });
   const inhalt = h('div');
   const figur = erstelleFigur(stage);
+  // Sichtbar = Tab Start offen und kein Training/keine Vorschau darüber (F4).
+  const sichtbar = () => aktuellerTab() === 'start' && !ansicht.hidden && !istUeberdeckt();
   ansicht.replaceChildren(
     h('div', { class: 'title-row' }, h('h1', { class: 'largetitle', text: 'Start' }),
       h('button', { class: 'glass', id: 'glas-knopf', type: 'button', 'aria-label': 'Sicherung', onclick: oeffneSicherung },
@@ -133,13 +135,18 @@ export function initStartseite() {
         h('p', { class: 'foot-links', text: 'Hauptmuskel zählt 1, mitarbeitender Muskel 0,5 je Arbeitssatz. Aufwärmsätze und Cardio zählen nicht.' }),
         h('div', { class: 'abstand-16' }));
       figur.setzeInhalt({ stufen, zweiD: () => zweiD(punkte) });
-      figur.setzeTabAktiv(!ansicht.hidden);
+      figur.setzeTabAktiv(sichtbar());
     } catch (e) {
       console.error('Startseite konnte nicht geladen werden:', e);
     }
   };
   registerTabVerlassen('start', () => figur.setzeTabAktiv(false));
-  registerTabUpdater('start', aktualisiere);
+  // Beim Öffnen sofort weiterzeichnen (die Figur bleibt aufgebaut), dann die Daten neu laden.
+  registerTabUpdater('start', () => {
+    figur.setzeTabAktiv(sichtbar());
+    return aktualisiere();
+  });
+  beiUeberdeckt(() => figur.setzeTabAktiv(sichtbar()));
   return aktualisiere;
 }
 

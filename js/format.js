@@ -13,6 +13,13 @@ export function datumKurz(iso) {
   return `${d.getDate()}. ${MONATE[d.getMonth()]}`;
 }
 
+const WOCHENTAGE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+/** Sa 14. Nov */
+export function tagKurz(iso) {
+  return `${WOCHENTAGE[new Date(iso).getDay()]} ${datumKurz(iso)}`;
+}
+
 /** 10. Nov 2026, 18:42 */
 export function datumZeit(iso) {
   const d = new Date(iso);
