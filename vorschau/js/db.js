@@ -1,5 +1,6 @@
 // IndexedDB: Stores, Migrationen, Startdaten und die atomaren Schreibvorgänge.
-import { DB_NAME } from './umgebung.js';
+import { DB_NAME, IST_VORSCHAU } from './umgebung.js';
+import { protokolliere } from './fehlerprotokoll.js';
 import { TRAININGSARTEN, STARTLISTE, STANDARD_MODUS, startModus } from './startdaten.js';
 
 export const SCHEMA_VERSION = 2;
@@ -132,32 +133,81 @@ export function oeffneDatenbank(name = DB_NAME, migrationen = MIGRATIONEN) {
   });
 }
 
+// 0.5.2 (F1): Jede Datenbank-Aktion hat ein Zeitlimit. iOS hält IndexedDB nach Sperren oder
+// App-Wechsel manchmal an, ohne Fehler. Dann wird die Verbindung geschlossen, neu geöffnet und die
+// Aktion einmal wiederholt – aber nur, wenn das sicher ist (Lesen oder idempotentes Schreiben mit
+// fester id). Danach kommt ein DatenbankFehler, nie ein endloses Warten.
+// Zwei Versuche zusammen bleiben unter dem Wächter in ui.js (WAECHTER_MS).
+export const ZEITLIMIT_MS = 4000;
+
+/** Fehler einer Datenbank-Aktion nach Zeitlimit oder Fehler (auch nach der Wiederholung). */
+export class DatenbankFehler extends Error {
+  constructor(grund, was, ursache = null) {
+    super(grund === 'zeitlimit' ? 'Datenbank hat nicht geantwortet' : 'Datenbank-Fehler');
+    this.name = 'DatenbankFehler';
+    this.grund = grund; // 'zeitlimit' | 'fehler'
+    this.was = was;
+    this.ursache = ursache;
+  }
+}
+
+// Nur Vorschau: Datenbank-Hänger nachstellen (Testauftrag 0.5.2). In der Live-App ohne Wirkung.
+// URL-Parameter ?test-haenger=<modus> oder in der Konsole gymTest.haenger('<modus>'):
+//   saetze   – jedes Speichern eines Satzes/Cardio-Eintrags hängt (beide Versuche)
+//   saetze-1 – nur der erste Versuch hängt, die Wiederholung klappt
+//   schreiben – jedes Schreiben hängt;  alles – jede Datenbank-Aktion hängt;  aus – normal
+let testHaenger = 'aus';
+if (IST_VORSCHAU) {
+  try {
+    testHaenger = new URLSearchParams(location.search).get('test-haenger') || 'aus';
+  } catch { /* ohne URL normal */ }
+  globalThis.gymTest = {
+    haenger(modus = 'saetze') { testHaenger = modus; return testHaenger; },
+    get modus() { return testHaenger; }
+  };
+}
+
+function haengtImTest(stores, modus, versuch) {
+  if (testHaenger === 'aus') return false;
+  const satz = modus === 'readwrite' && (stores.includes('saetze') || stores.includes('cardio'));
+  if (testHaenger === 'alles') return true;
+  if (testHaenger === 'schreiben') return modus === 'readwrite';
+  if (testHaenger === 'saetze') return satz;
+  if (testHaenger === 'saetze-1') return satz && versuch === 0;
+  return false;
+}
+
 let verbindung = null;
 
 function datenbank() {
   if (!verbindung) {
-    verbindung = oeffneDatenbank().then((db) => {
+    const p = oeffneDatenbank().then((db) => {
       // Eine neue Version in einem anderen Fenster darf nicht blockiert werden.
-      db.onversionchange = () => { db.close(); verbindung = null; };
-      db.onclose = () => { verbindung = null; };
+      db.onversionchange = () => { db.close(); if (verbindung === p) verbindung = null; };
+      db.onclose = () => { if (verbindung === p) verbindung = null; };
       return db;
-    }).catch((e) => { verbindung = null; throw e; });
+    }).catch((e) => { if (verbindung === p) verbindung = null; throw e; });
+    verbindung = p;
   }
   return verbindung;
 }
 
-/** Führt `arbeit` in einer Transaktion aus. Bei jedem Fehler bleibt alles unverändert. */
-async function mitTransaktion(stores, modus, arbeit) {
-  for (let versuch = 0; ; versuch++) {
+/** Verbindung verwerfen; die nächste Aktion öffnet neu. Eine noch hängende Öffnung wird später geschlossen. */
+function verwerfeVerbindung() {
+  const alt = verbindung;
+  verbindung = null;
+  alt?.then((db) => { try { db.close(); } catch { /* schon zu */ } }, () => {});
+}
+
+/** Ein Versuch mit Zeitlimit. Liefert { ergebnis } oder wirft { fehler, begonnen } (begonnen = Transaktion lief). */
+function einVersuch(stores, modus, arbeit, versuch) {
+  let t = null;
+  let abgelaufen = false;
+  const durchlauf = (async () => {
+    if (haengtImTest(stores, modus, versuch)) await new Promise(() => {});
     const db = await datenbank();
-    let t;
-    try {
-      t = db.transaction(stores, modus);
-    } catch (e) {
-      // iOS kann die Verbindung schließen, wenn die App im Hintergrund war.
-      if (versuch === 0 && e.name === 'InvalidStateError') { verbindung = null; continue; }
-      throw e;
-    }
+    if (abgelaufen) throw new Error('zu spät');
+    t = db.transaction(stores, modus);
     const abgeschlossen = fertig(t);
     try {
       const ergebnis = await arbeit(t);
@@ -168,18 +218,67 @@ async function mitTransaktion(stores, modus, arbeit) {
       await abgeschlossen.catch(() => {});
       throw e;
     }
+  })();
+  return new Promise((ok, nein) => {
+    const timer = setTimeout(() => {
+      abgelaufen = true;
+      // Eine noch aktive Transaktion abbrechen, damit sie nicht später doch schreibt.
+      try { t?.abort(); } catch { /* schon fertig oder nicht mehr abbrechbar */ }
+      durchlauf.catch(() => {});
+      nein({ fehler: new DatenbankFehler('zeitlimit'), begonnen: t !== null });
+    }, ZEITLIMIT_MS);
+    durchlauf.then(
+      (ergebnis) => { clearTimeout(timer); if (!abgelaufen) ok(ergebnis); },
+      (e) => { clearTimeout(timer); if (!abgelaufen) nein({ fehler: e, begonnen: t !== null }); });
+  });
+}
+
+const grundText = (e) => (e?.name === 'DatenbankFehler' && e.grund === 'zeitlimit'
+  ? 'Datenbank hat nicht geantwortet'
+  : `Fehler ${e?.name || 'unbekannt'}`);
+
+/**
+ * Führt `arbeit` in einer Transaktion aus. Bei jedem Fehler bleibt alles unverändert.
+ * optionen.idempotent: Schreiben darf nach Zeitlimit/Fehler wiederholt werden (put/delete mit fester id).
+ * optionen.was: kurzer Name für das Fehlerprotokoll. optionen.leise: nichts protokollieren (Entwürfe).
+ */
+async function mitTransaktion(stores, modus, arbeit, { idempotent = false, was = 'Datenbank', leise = false } = {}) {
+  const darfWiederholen = modus === 'readonly' || idempotent;
+  let erster;
+  try {
+    return await einVersuch(stores, modus, arbeit, 0);
+  } catch ({ fehler, begonnen }) {
+    erster = fehler;
+    verwerfeVerbindung();
+    // Ohne begonnene Transaktion wurde nichts geschrieben: dann ist jede Aktion wiederholbar.
+    if (!darfWiederholen && begonnen) {
+      if (!leise) protokolliere(modus === 'readonly' ? 'Laden hat nicht geklappt' : 'Speichern hat nicht geklappt',
+        `${was}: ${grundText(fehler)}, nicht wiederholt.`);
+      throw fehler?.name === 'DatenbankFehler' ? Object.assign(fehler, { was }) : new DatenbankFehler('fehler', was, fehler);
+    }
+  }
+  try {
+    const ergebnis = await einVersuch(stores, modus, arbeit, 1);
+    if (!leise) protokolliere('Datenbank-Hänger', `${was}: ${grundText(erster)}, beim zweiten Versuch geklappt.`);
+    return ergebnis;
+  } catch ({ fehler }) {
+    verwerfeVerbindung();
+    if (!leise) protokolliere(modus === 'readonly' ? 'Laden hat nicht geklappt' : 'Speichern hat nicht geklappt',
+      `${was}: ${grundText(fehler)}, nach einem Versuch wiederholt.`);
+    throw fehler?.name === 'DatenbankFehler' ? Object.assign(fehler, { was }) : new DatenbankFehler('fehler', was, fehler);
   }
 }
 
 /** Legt fehlende Trainingsarten und Übungen der Startliste an, ohne vorhandene zu ändern. */
 export function initialisiere() {
+  // Wiederholbar: prüft vorhandene ids neu und legt nur Fehlendes an.
   return mitTransaktion(['trainingsarten', 'uebungen'], 'readwrite', async (t) => {
     for (const [name, eintraege] of [['trainingsarten', TRAININGSARTEN], ['uebungen', STARTLISTE]]) {
       const store = t.objectStore(name);
       const vorhanden = new Set(await anfrage(store.getAllKeys()));
       for (const e of eintraege) if (!vorhanden.has(e.id)) store.add(e);
     }
-  });
+  }, { idempotent: true, was: 'Start vorbereiten' });
 }
 
 const leseAlles = async (t) => {
@@ -224,13 +323,13 @@ export function leseStand() {
       anfrage(t.objectStore(KOPIE).get(KOPIE_ID))
     ]);
     return { daten, letzteSicherung, kopie: kopie || null };
-  });
+  }, { was: 'Sicherung lesen' });
 }
 
 export function setzeLetzteSicherung(iso) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_LETZTE_SICHERUNG, iso);
-  });
+  }, { idempotent: true, was: 'Sicherung merken' });
 }
 
 /**
@@ -251,7 +350,7 @@ export function importiere(daten, exportiertAm, { mitKopie }) {
     }
     ersetzeDaten(t, mitStartdaten(daten));
     schreibeMeta(t, META_LETZTE_SICHERUNG, exportiertAm);
-  });
+  }, { was: 'Import' });
 }
 
 /** Stellt die interne Kopie wieder her und entfernt sie danach. */
@@ -263,46 +362,47 @@ export function machImportRueckgaengig() {
     schreibeMeta(t, META_LETZTE_SICHERUNG, kopie.letzteSicherung);
     t.objectStore(KOPIE).delete(KOPIE_ID);
     return kopie;
-  });
+  }, { was: 'Import rückgängig' });
 }
 
 export function alleUebungen() {
-  return mitTransaktion(['uebungen'], 'readonly', (t) => anfrage(t.objectStore('uebungen').getAll()));
+  return mitTransaktion(['uebungen'], 'readonly', (t) => anfrage(t.objectStore('uebungen').getAll()), { was: 'Übungen laden' });
 }
 
 export function alleTrainingsarten() {
   return mitTransaktion(['trainingsarten'], 'readonly', async (t) => {
     const arten = await anfrage(t.objectStore('trainingsarten').getAll());
     return arten.sort((a, b) => a.reihenfolge - b.reihenfolge);
-  });
+  }, { was: 'Trainingsarten laden' });
 }
 
 export function speichereUebung(uebung) {
   return mitTransaktion(['uebungen', META], 'readwrite', (t) => {
-    t.objectStore('uebungen').add(uebung);
+    // put statt add: die id entsteht vorab, eine Wiederholung legt die Übung nicht doppelt an.
+    t.objectStore('uebungen').put(uebung);
     schreibeMeta(t, META_ENTWURF_UEBUNG, null);
-  });
+  }, { idempotent: true, was: 'Übung speichern' });
 }
 
 export function leseEntwurfUebung() {
-  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ENTWURF_UEBUNG));
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ENTWURF_UEBUNG), { was: 'Entwurf laden' });
 }
 
 export function setzeEntwurfUebung(entwurf) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_ENTWURF_UEBUNG, entwurf);
-  });
+  }, { idempotent: true, was: 'Entwurf merken', leise: true });
 }
 
 /** Alle Trainingsdaten auf einmal (für Start, Training und Sicherung). */
 export function leseDaten() {
-  return mitTransaktion(DATEN_STORES, 'readonly', leseAlles);
+  return mitTransaktion(DATEN_STORES, 'readonly', leseAlles, { was: 'Daten laden' });
 }
 
 export function speichereTraining(training) {
   return mitTransaktion(['trainings'], 'readwrite', (t) => {
     t.objectStore('trainings').put(training);
-  });
+  }, { idempotent: true, was: 'Training speichern' });
 }
 
 /** Löscht ein Training samt Sätzen und Cardio-Einträgen; ein Eingabe-Entwurf nur, wenn er dazugehört. */
@@ -315,7 +415,7 @@ export function loescheTraining(id) {
     t.objectStore('trainings').delete(id);
     const entwurf = await leseMeta(t, META_ENTWURF_SATZ);
     if (!entwurf || entwurf.trainingId === id) schreibeMeta(t, META_ENTWURF_SATZ, null);
-  });
+  }, { idempotent: true, was: 'Training löschen' });
 }
 
 /** Speichert einen Satz bzw. Cardio-Eintrag; gleichzeitig wird der Eingabe-Entwurf gelöscht. */
@@ -323,35 +423,35 @@ export function speichereEintrag(store, eintrag) {
   return mitTransaktion([store, META], 'readwrite', (t) => {
     t.objectStore(store).put(eintrag);
     schreibeMeta(t, META_ENTWURF_SATZ, null);
-  });
+  }, { idempotent: true, was: 'Satz speichern' });
 }
 
 export function loescheEintrag(store, id) {
   return mitTransaktion([store, META], 'readwrite', (t) => {
     t.objectStore(store).delete(id);
     schreibeMeta(t, META_ENTWURF_SATZ, null);
-  });
+  }, { idempotent: true, was: 'Satz löschen' });
 }
 
 export function leseEntwurfSatz() {
-  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ENTWURF_SATZ));
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ENTWURF_SATZ), { was: 'Entwurf laden' });
 }
 
 export function setzeEntwurfSatz(entwurf) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_ENTWURF_SATZ, entwurf);
-  });
+  }, { idempotent: true, was: 'Entwurf merken', leise: true });
 }
 
 /** Wo die App zuletzt war ('start' | 'training' | 'vorschau:<artId>'); nur Oberfläche, gehört nicht in die Sicherung. */
 export function leseLetzteAnsicht() {
-  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ANSICHT));
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_ANSICHT), { was: 'Ansicht laden' });
 }
 
 export function setzeLetzteAnsicht(ansicht) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_ANSICHT, ansicht);
-  });
+  }, { idempotent: true, was: 'Ansicht merken', leise: true });
 }
 
 /** Körpergewicht speichern (ein Wert für die ganze App, gehört in die Sicherung). */
@@ -359,43 +459,43 @@ export function speichereKoerpergewicht(kg) {
   return mitTransaktion(['koerpergewicht', META], 'readwrite', (t) => {
     t.objectStore('koerpergewicht').put({ id: KOERPERGEWICHT_ID, kg, geaendertAm: new Date().toISOString() });
     schreibeMeta(t, META_KG_GEFRAGT, true);
-  });
+  }, { idempotent: true, was: 'Körpergewicht speichern' });
 }
 
 /** Ob die App schon einmal automatisch nach dem Körpergewicht gefragt hat (nur Oberfläche). */
 export function leseKoerpergewichtGefragt() {
-  return mitTransaktion([META], 'readonly', async (t) => Boolean(await leseMeta(t, META_KG_GEFRAGT)));
+  return mitTransaktion([META], 'readonly', async (t) => Boolean(await leseMeta(t, META_KG_GEFRAGT)), { was: 'Einstellung laden' });
 }
 
 export function setzeKoerpergewichtGefragt() {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_KG_GEFRAGT, true);
-  });
+  }, { idempotent: true, was: 'Einstellung merken' });
 }
 
 /** Zeitpunkt der letzten Sicherung (ISO) oder null. */
 export function leseLetzteSicherung() {
-  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_LETZTE_SICHERUNG));
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_LETZTE_SICHERUNG), { was: 'Sicherung lesen' });
 }
 
 /** Zuletzt gestartete App-Version (für „Erst sichern?“) oder null. */
 export function leseGeseheneVersion() {
-  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_VERSION));
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_VERSION), { was: 'Version lesen' });
 }
 
 export function setzeGeseheneVersion(version) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_VERSION, version);
-  });
+  }, { idempotent: true, was: 'Version merken' });
 }
 
 /** Hauptübungen (Sterne auf Mehr → Rekorde): Liste von Übungs-IDs oder null, solange nichts gewählt wurde. */
 export function leseHauptuebungen() {
-  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_HAUPTUEBUNGEN));
+  return mitTransaktion([META], 'readonly', (t) => leseMeta(t, META_HAUPTUEBUNGEN), { was: 'Hauptübungen laden' });
 }
 
 export function setzeHauptuebungen(ids) {
   return mitTransaktion([META], 'readwrite', (t) => {
     schreibeMeta(t, META_HAUPTUEBUNGEN, ids);
-  });
+  }, { idempotent: true, was: 'Hauptübungen speichern' });
 }

@@ -105,6 +105,17 @@ function rufeAuf(liste, arg) {
   }
 }
 
+let tabZeigen = null;
+let aktuellerTabId = null;
+
+/** Id des offenen Tabs ('start' | 'training' | 'verlauf' | 'mehr'). */
+export const aktuellerTab = () => aktuellerTabId;
+
+/** Öffnet einen Tab wie per Antippen (z. B. beim App-Start mit laufendem Training). */
+export function zeigeTab(id) {
+  if (tabZeigen && aktuellerTabId !== id) tabZeigen(id);
+}
+
 export function baueTabs(wurzel) {
   const ansichten = {
     start: h('div', { class: 'view start-view', hidden: true, id: 'start-ansicht' }),
@@ -119,6 +130,7 @@ export function baueTabs(wurzel) {
   const zeige = (id, nochmal = false) => {
     if (aktuell && aktuell !== id) rufeAuf(tabVerlassenCallbacks.get(aktuell));
     aktuell = id;
+    aktuellerTabId = id;
     for (const t of TABS) {
       ansichten[t.id].hidden = t.id !== id;
       knoepfe[t.id].classList.toggle('on', t.id === id);
@@ -134,5 +146,6 @@ export function baueTabs(wurzel) {
   }
 
   wurzel.append(...Object.values(ansichten), h('nav', { class: 'tabbar' }, Object.values(knoepfe)));
+  tabZeigen = (id) => zeige(id);
   zeige('start');
 }

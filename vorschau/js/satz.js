@@ -2,7 +2,7 @@
 import { ganzeZahl, kommaZahl, nichtNegativeZahl, positiveZahl } from './format.js';
 import { chipText, istCardio, istNurWdh, istZusatz, istZeit, letztesMalText, satzBeschreibung, vorbelegtesGewicht } from './logik.js';
 import { aufwaermGewicht, vorschlag } from './regeln.js';
-import { behaeltFokus, griff, h, icon, oeffneSheet, sheetKopf, zeigeAlert } from './ui.js';
+import { behaeltFokus, griff, h, icon, neueSperre, oeffneSheet, sheetKopf, zeigeAlert, zeigeSpeicherFehler } from './ui.js';
 import { FEHLER_F2 } from './uebungen.js';
 
 const ERFOLG_MS = 1000;
@@ -27,33 +27,35 @@ function frageLoeschen(uebung, eintrag, nummer) {
 }
 
 function bearbeitenKnoepfe({ uebung, kontext, store, bearbeite, nummer, schliessen, sichern }) {
-  let laeuft = false;
+  // Sperre gegen Doppeltipp; löst sich immer (finally) oder spätestens durch den Wächter (ui.js).
+  const laeuft = neueSperre('Satz ändern');
   const sichernKnopf = h('button', { class: 'btn primary', type: 'button', text: 'Änderung sichern' });
   sichernKnopf.addEventListener('click', async () => {
-    if (laeuft || sichernKnopf.disabled) return;
-    laeuft = true;
+    if (laeuft.aktiv || sichernKnopf.disabled) return;
+    laeuft.setze();
     try {
       await sichern();
       schliessen();
     } catch {
-      zeigeAlert(FEHLER_F2);
+      // Sheet und Eingaben bleiben, der Knopf bleibt aktiv (Design 0.5.2).
+      zeigeSpeicherFehler();
     } finally {
-      laeuft = false;
+      laeuft.loese();
     }
   });
   const loeschen = h('button', {
     class: 'btn danger-text', type: 'button', text: 'Satz löschen',
     onclick: async () => {
-      if (laeuft) return;
+      if (laeuft.aktiv) return;
       if (await frageLoeschen(uebung, bearbeite, nummer) !== 'ja') return;
-      laeuft = true;
+      laeuft.setze();
       try {
         await kontext.loesche(store, bearbeite);
         schliessen();
       } catch {
         zeigeAlert(FEHLER_F2);
       } finally {
-        laeuft = false;
+        laeuft.loese();
       }
     }
   });
@@ -146,7 +148,10 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
   let aufwaermen = Boolean(start.aufwaermen);
   // Gewicht vor dem Einschalten des Aufwärm-Schalters (kommt beim Ausschalten/nach dem Speichern zurück).
   let arbeitsgewicht = mitAufwaermGewicht && typeof start.arbeitsgewicht === 'string' ? start.arbeitsgewicht : null;
-  let speichert = false;
+  const speichert = neueSperre('Satz speichern');
+  // id des Satzes, der gerade gespeichert wird: Nach einem Fehler nutzt der nächste Tipp dieselbe id,
+  // falls die Datenbank doch noch geschrieben hat, entsteht so kein doppelter Satz.
+  let offeneId = null;
   let sichernBearbeiten = null;
   let erfolgTimer = null;
 
@@ -301,10 +306,11 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
         sichernBearbeiten = k.sichernKnopf;
       } else {
         speichern.addEventListener('click', async () => {
-          if (speichert || !gueltig()) return;
-          speichert = true;
+          if (speichert.aktiv || !gueltig()) return;
+          speichert.setze();
+          offeneId ||= `satz-${crypto.randomUUID()}`;
           const neu = {
-            id: `satz-${crypto.randomUUID()}`,
+            id: offeneId,
             trainingId: kontext.trainingId,
             uebungId: uebung.id,
             ...werte(),
@@ -313,14 +319,15 @@ function oeffneKraft({ uebung, kontext, bearbeite, entwurf }) {
           try {
             await kontext.speichere('saetze', neu);
           } catch {
-            speichert = false;
-            zeigeAlert(FEHLER_F2);
+            speichert.loese();
+            zeigeSpeicherFehler();
             return;
           }
+          offeneId = null;
           kontext.pruefeRekord?.('saetze', neu);
           // Wdh. ist jetzt leer, ein zweiter Tipp speichert also nichts doppelt. Wer in der
           // Bestätigungssekunde schon neue Wdh. eintippt, kann sofort den nächsten Satz speichern.
-          speichert = false;
+          speichert.loese();
           wdh.value = '';
           if (aufwaermen && arbeitsgewicht !== null) {
             // Nach dem Aufwärmsatz steht wieder das Arbeitsgewicht im Feld.
@@ -371,7 +378,8 @@ function oeffneCardio({ uebung, kontext, bearbeite, entwurf }) {
   const start = entwurf || (bearbeite
     ? { dauer: kommaZahl(bearbeite.dauerMin), km: bearbeite.km === null ? '' : kommaZahl(bearbeite.km) }
     : { dauer: '', km: '' });
-  let speichert = false;
+  const speichert = neueSperre('Cardio speichern');
+  let offeneId = null;
 
   const dauer = h('input', {
     class: 'zahl', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off',
@@ -405,10 +413,11 @@ function oeffneCardio({ uebung, kontext, bearbeite, entwurf }) {
         aktion = k.teile;
       } else {
         speichern.addEventListener('click', async () => {
-          if (speichert || !gueltig()) return;
-          speichert = true;
+          if (speichert.aktiv || !gueltig()) return;
+          speichert.setze();
+          offeneId ||= `cardio-${crypto.randomUUID()}`;
           const neu = {
-            id: `cardio-${crypto.randomUUID()}`,
+            id: offeneId,
             trainingId: kontext.trainingId,
             uebungId: uebung.id,
             ...werte(),
@@ -417,10 +426,12 @@ function oeffneCardio({ uebung, kontext, bearbeite, entwurf }) {
           try {
             await kontext.speichere('cardio', neu);
           } catch {
-            speichert = false;
-            zeigeAlert(FEHLER_F2);
+            speichert.loese();
+            zeigeSpeicherFehler();
             return;
           }
+          offeneId = null;
+          speichert.loese();
           kontext.pruefeRekord?.('cardio', neu);
           schliessen();
         });

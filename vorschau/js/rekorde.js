@@ -266,6 +266,6 @@ export function initRekorde(slot) {
     } catch (e) {
       console.error('Rekorde konnten nicht geladen werden:', e);
     }
-  });
+  }, 'Rekorde laden', { fensterSchliessen: false });
   return aktualisiere;
 }

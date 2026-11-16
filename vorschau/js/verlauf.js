@@ -385,10 +385,15 @@ export function initVerlauf() {
    * Update-Handler: Wird aufgerufen bei Tab-Aktivierung oder Datenänderung.
    */
   const updateHandler = einmalig(async () => {
-    datenGlobal = await db.leseDaten();
+    try {
+      datenGlobal = await db.leseDaten();
+    } catch (e) {
+      console.error('Verlauf konnte nicht geladen werden:', e);
+      return;
+    }
     zeichneKalender();
     zeichneLetzte();
-  });
+  }, 'Verlauf laden', { fensterSchliessen: false });
 
   // Registriere als Tab-Updater
   registerTabUpdater('verlauf', updateHandler);

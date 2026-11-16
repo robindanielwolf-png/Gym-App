@@ -6,7 +6,7 @@ import { GERAETE, MODI, MUSKELN, STANDARD_MODUS, geraet } from './startdaten.js'
 const EIGENE_MODI = MODI.filter((m) => m.id !== 'zeit');
 import { kommaZahl, positiveZahl } from './format.js';
 import { zuletztText } from './logik.js';
-import { einmalig, h, icon, kachel, leerHinweis, oeffneSheet, sheetKopf, griff, zeigeAlert } from './ui.js';
+import { einmalig, h, icon, kachel, leerHinweis, oeffneSheet, sheetKopf, griff, zeigeAlert, zeigeSpeicherFehler } from './ui.js';
 
 export const FEHLER_F2 = {
   titel: 'Das hat nicht geklappt',
@@ -115,7 +115,7 @@ const LEER_ENTWURF = {
   name: '', geraet: 'langhantel', stufe: 2.5, stufeManuell: false, modus: STANDARD_MODUS, artIds: [], muskelnP: [], muskelnS: []
 };
 
-const neueUebungEinmal = einmalig(oeffneNeueUebung);
+const neueUebungEinmal = einmalig(oeffneNeueUebung, 'Neue Übung öffnen');
 
 async function oeffneNeueUebung(beiGesichert) {
   let arten;
@@ -128,6 +128,8 @@ async function oeffneNeueUebung(beiGesichert) {
   }
   const f = { ...LEER_ENTWURF, ...(entwurf || {}) };
   let speichert = false;
+  // Feste id je Sheet: Ein zweiter Tipp nach einem Fehler legt die Übung nicht doppelt an.
+  const neueId = `e-${crypto.randomUUID()}`;
 
   // Halb Eingetipptes übersteht App-Schließen, Anruf und Sperren.
   const merke = () => { db.setzeEntwurfUebung({ ...f }).catch(() => {}); };
@@ -220,7 +222,7 @@ async function oeffneNeueUebung(beiGesichert) {
         speichert = true;
         const g = geraet(f.geraet);
         const neu = {
-          id: `e-${crypto.randomUUID()}`,
+          id: neueId,
           name: f.name.trim(),
           artIds: arten.filter((a) => f.artIds.includes(a.id)).map((a) => a.id),
           geraet: f.geraet,
@@ -235,7 +237,7 @@ async function oeffneNeueUebung(beiGesichert) {
           await db.speichereUebung(neu);
         } catch {
           speichert = false;
-          zeigeAlert(FEHLER_F2);
+          zeigeSpeicherFehler();
           return;
         }
         schliessen();

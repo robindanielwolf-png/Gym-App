@@ -1,6 +1,7 @@
 // Screen 01/01c (Arten + Fortsetzen), 01a/01b (Trainingsvorschau) und 02 (laufendes Training):
 // Vorschau, Check-in erst mit „Training starten“, Zurück, Art ändern, Verwerfen, Beenden, Auto-Ende.
-// Das laufende Training steht sofort in IndexedDB.
+// Das laufende Training steht sofort in IndexedDB. 0.5.2: Speicherstatus, Rückfrage beim Beenden,
+// Ende-Datum zuerst sicher schreiben, Nebenschritte danach ohne Sperre, kein Zurück-Wischen mehr.
 import * as db from './db.js';
 import { datumKurz, tageText, uhrzeit } from './format.js';
 import {
@@ -9,16 +10,22 @@ import {
 } from './logik.js';
 import { alsNaechstesDran, neueRekorde, rekordHinweis } from './regeln.js';
 import { oeffneSatz } from './satz.js';
-import { setzeArten } from './tabs.js';
+import { setzeArten, zeigeTab } from './tabs.js';
+import { protokolliere } from './fehlerprotokoll.js';
 import { zeigeTrainingsUebersicht } from './muskel-figur.js';
 import { aktualisierePunkt, frageJetztSichern } from './sicherung-sheet.js';
 import { FEHLER_F2, oeffneHinzufuegen } from './uebungen.js';
 import {
-  einmalig, griff, h, icon, kachel, leerHinweis, oeffneSheet, randWischen, schliesseAlles, sheetKopf, zeigeAlert, zeigeHinweis
+  einmalig, griff, h, icon, kachel, leerHinweis, oeffneSheet, schliesseAlles, setzeUeberdeckt, sheetKopf, zeigeAlert,
+  zeigeHinweis, zeigeSpeicherFehler
 } from './ui.js';
 
 const PRUEF_INTERVALL_MS = 60 * 1000;
 const UEBERGANG_MS = 320;
+const GESPEICHERT_SICHTBAR_MS = 2000;
+// Farbe von „Ja“ im Alert „Willst du das Training wirklich beenden?“: vorerst blau (false).
+// Für Rot (wie bei „Verwerfen“) hier true setzen.
+const JA_BEENDEN_ROT = false;
 
 let trainingAnsicht;
 let trainingInhalt;
@@ -41,13 +48,7 @@ export function initTraining(app) {
   vorschauFuss = h('div', { class: 'bottom-bar' });
   vorschauAnsicht = h('div', { class: 'push-ansicht vorschau-ansicht', hidden: true }, vorschauInhalt, vorschauFuss);
   app.append(vorschauAnsicht, trainingAnsicht);
-  // Zurück per Wischen vom linken Rand: gleiches Ziel wie „‹ Training“.
-  const darunter = () => [...app.children].filter((el) => !el.classList.contains('push-ansicht') && !el.hidden);
-  randWischen(vorschauAnsicht, { darunter, beiZurueck: () => zurStartseite({ sofort: true }) });
-  randWischen(trainingAnsicht, {
-    darunter: () => [...darunter(), ...(vorschauAnsicht.hidden ? [] : [vorschauAnsicht])],
-    beiZurueck: () => zurStartseite({ sofort: true })
-  });
+  // 0.5.2 (V6): kein Zurück-Wischen vom linken Rand mehr; zurück nur über „‹ Training“.
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pruefeAutoEnde(); });
 }
 
@@ -69,6 +70,8 @@ function zeigeEbene(el, an, { sofort = false } = {}) {
     el.classList.remove('offen');
     setTimeout(() => { if (!el.classList.contains('offen')) el.hidden = true; }, UEBERGANG_MS);
   }
+  // Liegt Training oder Vorschau über den Tabs? Tabs laden dann nicht neu, die 3D-Figur pausiert.
+  setzeUeberdeckt(trainingAnsicht.classList.contains('offen') || vorschauAnsicht.classList.contains('offen'));
 }
 
 /** Vorschau → Training: das Training schiebt sich darüber, die Vorschau verschwindet danach darunter. */
@@ -89,7 +92,7 @@ const merkeAnsicht = (wo) => { db.setzeLetzteAnsicht(wo).catch(() => {}); };
  * laufendes Training). Ein halb eingetippter Satz öffnet immer das Training. Ist noch nichts
  * gemerkt (Update von 0.2.0) und läuft ein Training, öffnet das Training wie bisher.
  */
-export async function ladeUndZeige({ start = false, ziel = null } = {}) {
+export async function ladeUndZeige({ start = false, ziel = null, fehlerAlert = true } = {}) {
   let entwurf = null;
   let letzteAnsicht = null;
   try {
@@ -107,8 +110,9 @@ export async function ladeUndZeige({ start = false, ziel = null } = {}) {
     if (start) [entwurf, letzteAnsicht] = await Promise.all([db.leseEntwurfSatz(), db.leseLetzteAnsicht()]);
     kgGefragt = await db.leseKoerpergewichtGefragt();
   } catch {
-    zeigeAlert(FEHLER_F2);
-    return;
+    // Liefert false; beim App-Start zeigt main.js die Meldung und versucht es erneut.
+    if (fehlerAlert) zeigeAlert(FEHLER_F2);
+    return false;
   }
 
   laufend = daten.trainings.filter((t) => t.endedAt === null)
@@ -126,6 +130,9 @@ export async function ladeUndZeige({ start = false, ziel = null } = {}) {
     else if (typeof letzteAnsicht !== 'string') wohin = laufend ? 'training' : 'start';
     else wohin = letzteAnsicht;
   }
+  // F5: Läuft beim App-Start ein Training, steht immer der Tab Training mit „<Art> läuft · Fortsetzen“
+  // unter allem (nicht Start mit der 3D-Figur); „‹ Training“ führt dorthin zurück.
+  if (start && laufend) zeigeTab('training');
 
   const vorschauArt = wohin.startsWith('vorschau:') ? artVon(wohin.slice('vorschau:'.length)) : null;
   if (vorschauArt && laufend?.artId === vorschauArt.id) wohin = 'training';
@@ -143,6 +150,7 @@ export async function ladeUndZeige({ start = false, ziel = null } = {}) {
     zeigeEbene(vorschauAnsicht, false);
     merkeAnsicht('start');
   }
+  return true;
 }
 
 function zeichneStart() {
@@ -223,11 +231,27 @@ function oeffneVorschau(art, { sofort = false } = {}) {
   zeigeEbene(vorschauAnsicht, true, { sofort });
 }
 
-/** Erst hier entsteht das Training (Check-in). */
+// id des Trainings, das gerade angelegt wird: Nach einem Fehler nutzt der nächste Tipp dieselbe id,
+// falls die Datenbank doch noch geschrieben hat, entsteht so kein zweites Training.
+let startId = null;
+
+/** Erst hier entsteht das Training (Check-in). Nie ein zweites laufendes Training. */
 const starte = einmalig(async (art) => {
   if (laufend) return;
+  let schonLaufend;
+  try {
+    schonLaufend = (await db.leseDaten()).trainings.some((t) => t.endedAt === null);
+  } catch {
+    zeigeSpeicherFehler();
+    return;
+  }
+  if (schonLaufend) {
+    await ladeUndZeige({ ziel: 'training' });
+    return;
+  }
+  startId ||= `t-${crypto.randomUUID()}`;
   const training = {
-    id: `t-${crypto.randomUUID()}`,
+    id: startId,
     artId: art.id,
     startedAt: new Date().toISOString(),
     endedAt: null,
@@ -236,11 +260,59 @@ const starte = einmalig(async (art) => {
   try {
     await db.speichereTraining(training);
   } catch {
-    zeigeAlert(FEHLER_F2);
+    zeigeSpeicherFehler();
     return;
   }
+  startId = null;
   await ladeUndZeige({ ziel: 'training' });
-});
+}, 'Training starten');
+
+// ---------- Speicherstatus im laufenden Training (V2, Design 0.5.2 Punkt 1) ----------
+
+const speicherstatus = h('span', { class: 'speicherstatus', role: 'status' });
+let statusTimer = null;
+let offeneSpeicherungen = 0;
+let statusTrainingId = null;
+
+/** zustand: 'speichert' | 'gespeichert' | 'fehler' | 'leer'. Das Element bleibt immer im DOM (kein Springen). */
+function setzeSpeicherstatus(zustand) {
+  clearTimeout(statusTimer);
+  speicherstatus.classList.remove('blendet');
+  speicherstatus.dataset.zustand = zustand;
+  if (zustand === 'leer') {
+    speicherstatus.classList.remove('sichtbar');
+    return;
+  }
+  const [iconName, text] = {
+    speichert: ['i-sync', 'wird gespeichert …'],
+    gespeichert: ['i-check', 'gespeichert'],
+    fehler: ['i-x', 'nicht gespeichert']
+  }[zustand];
+  speicherstatus.replaceChildren(icon(iconName, zustand === 'speichert' ? 's14 spin' : 's14'), text);
+  speicherstatus.classList.add('sichtbar');
+  if (zustand === 'gespeichert') {
+    statusTimer = setTimeout(() => {
+      speicherstatus.classList.add('blendet');
+      speicherstatus.classList.remove('sichtbar');
+    }, GESPEICHERT_SICHTBAR_MS);
+  }
+}
+
+/** Führt eine Speicherung aus und zeigt dabei den Status; Fehler werden weitergegeben. */
+async function mitSpeicherstatus(arbeit) {
+  offeneSpeicherungen++;
+  setzeSpeicherstatus('speichert');
+  try {
+    const ergebnis = await arbeit();
+    offeneSpeicherungen--;
+    if (offeneSpeicherungen === 0) setzeSpeicherstatus('gespeichert');
+    return ergebnis;
+  } catch (e) {
+    offeneSpeicherungen--;
+    setzeSpeicherstatus('fehler');
+    throw e;
+  }
+}
 
 // ---------- Laufendes Training (02) ----------
 
@@ -253,6 +325,11 @@ function oeffneTraining({ sofort = false } = {}) {
     letztesMal: letztesMalIndex(daten, laufend.id)
   };
   merkeAnsicht('training');
+  // „nicht gespeichert“ bleibt beim Wiederöffnen stehen, bis der nächste Versuch läuft (Design A3);
+  // nur bei einem anderen Training beginnt der Status leer.
+  const anderesTraining = statusTrainingId !== laufend.id;
+  statusTrainingId = laufend.id;
+  if (offeneSpeicherungen === 0 && (anderesTraining || speicherstatus.dataset.zustand !== 'fehler')) setzeSpeicherstatus('leer');
   zeichne();
   zeigeEbene(trainingAnsicht, true, { sofort });
   vorschauUnterTrainingWeg();
@@ -281,20 +358,19 @@ function kontextFuer(uebung) {
     letztesMal: lauf.letztesMal.get(uebung.id),
     heute,
     async speichere(store, eintrag) {
-      await db.speichereEintrag(store, eintrag);
+      await mitSpeicherstatus(() => db.speichereEintrag(store, eintrag));
       const liste = daten[store];
       const i = liste.findIndex((e) => e.id === eintrag.id);
       if (i >= 0) liste[i] = eintrag; else liste.push(eintrag);
       zeichne();
-      // Event triggern: Verlauf/Rekorde und andere Module laden Daten neu
-      window.dispatchEvent(new Event('gym-daten-geaendert'));
+      // F3: Nur das Training ist schon aktuell; Start, Verlauf und Mehr laden beim nächsten Öffnen.
+      window.dispatchEvent(new Event('gym-daten-veraltet'));
     },
     async loesche(store, eintrag) {
       await db.loescheEintrag(store, eintrag.id);
       daten[store] = daten[store].filter((e) => e.id !== eintrag.id);
       zeichne();
-      // Event triggern: Verlauf/Rekorde und andere Module laden Daten neu
-      window.dispatchEvent(new Event('gym-daten-geaendert'));
+      window.dispatchEvent(new Event('gym-daten-veraltet'));
     },
     merke(entwurf) {
       db.setzeEntwurfSatz(entwurf && { ...entwurf, trainingId: lauf.training.id }).catch(() => {});
@@ -313,7 +389,7 @@ function kontextFuer(uebung) {
       kgGefragt = true;
       return db.speichereKoerpergewicht(kg).catch(() => {
         daten.koerpergewicht = alt;
-        zeigeAlert(FEHLER_F2);
+        zeigeSpeicherFehler();
       });
     },
     kgGefragt: () => kgGefragt,
@@ -341,12 +417,16 @@ function stelleEntwurfWiederHer(entwurf) {
   oeffneSatzFuer(uebung, bearbeite, entwurf);
 }
 
-async function speichereTraining() {
+/** Speichert Übungsliste bzw. Art des laufenden Trainings; bei Fehler gilt wieder `alt`. */
+async function speichereTraining(neu, alt) {
   try {
-    await db.speichereTraining(lauf.training);
+    await mitSpeicherstatus(() => db.speichereTraining(neu));
   } catch {
-    zeigeAlert(FEHLER_F2);
-    await ladeUndZeige();
+    if (lauf?.training === neu) {
+      setzeTraining(alt);
+      zeichne();
+    }
+    zeigeSpeicherFehler();
   }
 }
 
@@ -361,8 +441,9 @@ function hinzufuegen() {
     },
     beiWahl: (u) => {
       if (!lauf.training.uebungIds.includes(u.id)) {
-        setzeTraining({ ...lauf.training, uebungIds: [...lauf.training.uebungIds, u.id] });
-        speichereTraining();
+        const alt = lauf.training;
+        setzeTraining({ ...alt, uebungIds: [...alt.uebungIds, u.id] });
+        speichereTraining(lauf.training, alt);
         zeichne();
       }
       oeffneSatzFuer(u);
@@ -394,7 +475,8 @@ function zeichne() {
       zurueckKnopf(zurStartseite),
       h('button', { class: 'link', type: 'button', text: 'Art ändern', onclick: artAendern })),
     h('h1', { class: 'largetitle', text: art.name }),
-    h('div', { class: 'subtitle running' }, h('span', { class: 'dot' }), `läuft seit ${uhrzeit(t.startedAt)}`),
+    h('div', { class: 'subtitle running' }, h('span', { class: 'dot' }),
+      h('span', { class: 'laeuft-seit', text: `läuft seit ${uhrzeit(t.startedAt)}` }), speicherstatus),
     ...(uebungen.length === 0
       ? [
         h('div', { class: 'abstand-32' }),
@@ -425,29 +507,71 @@ async function frageUndVerwerfe() {
   return true;
 }
 
-const beenden = einmalig(async () => {
+/**
+ * „Training beenden“: mit mindestens einem Satz erst die Rückfrage (Design 0.5.2, Punkt 3), ohne Satz
+ * die Verwerfen-Frage. Antippen außerhalb = Nein. Nur „Ja“ beendet.
+ */
+async function beenden() {
   if (!lauf) return;
   if (eintraege().length === 0) {
     await frageUndVerwerfe();
     return;
   }
-  const trainingId = lauf.training.id;
-  const art = artVon(lauf.training.artId);
+  const wahl = await zeigeAlert({
+    titel: 'Willst du das Training wirklich beenden?',
+    text: 'Das Training wird gespeichert.',
+    aussenNein: true,
+    textGrau: true,
+    knoepfe: [{ id: 'nein', label: 'Nein', fett: true }, { id: 'ja', label: 'Ja', rot: JA_BEENDEN_ROT }]
+  });
+  if (wahl !== 'ja' || !lauf) return;
+  await beendenSpeichern();
+}
+
+/**
+ * F5: Zuerst nur das Ende-Datum sicher schreiben. Klappt das nicht, bleibt das Training laufend und
+ * es kommt der Hinweis „Speichern hat nicht geklappt – nochmal tippen“. Danach stellt die Oberfläche
+ * ohne weitere Datenbank-Arbeit auf Start um; Nebenschritte laufen außerhalb der Sperre.
+ */
+const beendenSpeichern = einmalig(async () => {
+  if (!lauf) return;
+  const training = lauf.training;
+  const art = artVon(training.artId);
   const alle = eintraege();
   const anzahlUebungen = new Set(alle.map((e) => e.uebungId)).size;
   const gespeichert = `${art?.name || 'Das Training'} mit ${anzahlUebungen} ${anzahlUebungen === 1 ? 'Übung' : 'Übungen'} und ${alle.length} ${alle.length === 1 ? 'Satz' : 'Sätzen'} ist gespeichert.`;
+  const beendet = { ...training, endedAt: new Date().toISOString() };
   try {
-    await db.speichereTraining({ ...lauf.training, endedAt: new Date().toISOString() });
+    await mitSpeicherstatus(() => db.speichereTraining(beendet));
   } catch {
-    zeigeAlert(FEHLER_F2);
+    zeigeSpeicherFehler();
     return;
   }
-  merkeAnsicht('start');
-  await ladeUndZeige({ ziel: 'start' });
-  await zeigeTrainingsUebersicht(daten, trainingId);
-  await frageJetztSichern(gespeichert);
-  aktualisierePunkt();
-});
+  // Ab hier ist das Training beendet. Nur noch der Speicher im Arbeitsspeicher wird angepasst.
+  const i = daten.trainings.findIndex((t) => t.id === beendet.id);
+  if (i >= 0) daten.trainings[i] = beendet;
+  laufend = null;
+  clearInterval(pruefTimer);
+  pruefTimer = null;
+  zurStartseite();
+  window.dispatchEvent(new Event('gym-daten-veraltet'));
+  nachDemBeenden(beendet.id, gespeichert);
+}, 'Training beenden');
+
+/** Muskel-Übersicht, „Jetzt sichern?“ und Punkt am Glas-Knopf: dürfen nie die App sperren. */
+async function nachDemBeenden(trainingId, gespeichert) {
+  try {
+    await zeigeTrainingsUebersicht(daten, trainingId);
+  } catch (e) {
+    protokolliere('Nach dem Beenden', `Muskel-Übersicht: ${e?.name || 'Fehler'}`);
+  }
+  try {
+    await frageJetztSichern(gespeichert);
+  } catch (e) {
+    protokolliere('Nach dem Beenden', `Jetzt sichern?: ${e?.name || 'Fehler'}`);
+  }
+  aktualisierePunkt().catch(() => {});
+}
 
 function artAendern() {
   const hatEintraege = eintraege().length > 0;
@@ -465,12 +589,13 @@ function artAendern() {
             e.currentTarget.parentElement.querySelectorAll('.haken').forEach((x) => x.remove());
             e.currentTarget.append(icon('i-check', 'haken'));
             // Ohne Satz: Übungen vom letzten Training der neuen Art; mit Sätzen bleiben die Karten.
+            const alt = lauf.training;
             setzeTraining({
-              ...lauf.training,
+              ...alt,
               artId: a.id,
-              uebungIds: hatEintraege ? lauf.training.uebungIds : letzteUebungen(daten, a.id, lauf.training.id)
+              uebungIds: hatEintraege ? alt.uebungIds : letzteUebungen(daten, a.id, alt.id)
             });
-            speichereTraining();
+            speichereTraining(lauf.training, alt);
             setTimeout(() => { schliessen(); zeichne(); }, 200);
           }
         }, kachel(a.icon), h('div', { class: 'main t', text: a.name }),

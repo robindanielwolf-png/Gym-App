@@ -1,5 +1,6 @@
 // Bausteine der Oberfläche: DOM-Helfer, Sheets, Alerts, Hinweis oben.
 // Texte aus Daten nur über textContent einsetzen, nie als HTML.
+import { protokolliere } from './fehlerprotokoll.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DAUER_SCHLIESSEN = 320;
@@ -39,21 +40,95 @@ export function leerHinweis({ iconName, headline, subhead }) {
     subhead && h('div', { class: 'empty-s', text: subhead }));
 }
 
-/** Ignoriert weitere Aufrufe, solange der vorige noch läuft (Doppeltipp). */
-export function einmalig(fn) {
-  let laeuft = false;
+// 0.5.2 (F2): Wächter. Keine Sperre gegen Doppeltipp bleibt länger als WAECHTER_MS stehen.
+// Die Datenbank gibt nach spätestens 2 × ZEITLIMIT_MS (db.js) auf, der Wächter liegt darüber.
+export const WAECHTER_MS = 10000;
+
+/**
+ * Sperre gegen Doppeltipp, die sich nach WAECHTER_MS selbst löst (mit Eintrag im Fehlerprotokoll).
+ * was: kurzer Name für das Protokoll. beiHaenger(): optional, räumt beim Lösen durch den Wächter auf.
+ */
+export function neueSperre(was, beiHaenger = null) {
+  let aktiv = false;
+  let timer = null;
+  let lauf = 0;
+  return {
+    get aktiv() { return aktiv; },
+    setze() {
+      aktiv = true;
+      const mein = ++lauf;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!aktiv || mein !== lauf) return;
+        aktiv = false;
+        protokolliere('Sperre gelöst', `${was}: nach ${Math.round(WAECHTER_MS / 1000)} s ohne Antwort freigegeben.`);
+        try { beiHaenger?.(); } catch { /* Aufräumen darf nie selbst hängen */ }
+      }, WAECHTER_MS);
+    },
+    loese() {
+      aktiv = false;
+      lauf++;
+      clearTimeout(timer);
+    }
+  };
+}
+
+/**
+ * Ignoriert weitere Aufrufe, solange der vorige noch läuft (Doppeltipp). Die Sperre löst sich
+ * immer: am Ende (auch bei Fehler) oder spätestens durch den Wächter. Hängt die Aktion, schließt
+ * der Wächter auch Fenster, die währenddessen geöffnet wurden (nicht bei Hintergrund-Laden).
+ */
+export function einmalig(fn, was = 'Aktion', { fensterSchliessen = true } = {}) {
+  let ebenenVorher = [];
+  const sperre = neueSperre(was, () => {
+    if (!fensterSchliessen) return;
+    [...stapel].reverse().filter((e) => !ebenenVorher.includes(e)).forEach((e) => e.zu?.());
+  });
   return async (...args) => {
-    if (laeuft) return;
-    laeuft = true;
+    if (sperre.aktiv) return;
+    ebenenVorher = [...stapel];
+    sperre.setze();
     try {
       await fn(...args);
     } finally {
-      laeuft = false;
+      sperre.loese();
     }
   };
 }
 
 const stapel = [];
+
+// Laufendes Training oder Trainingsvorschau liegt über den Tabs (training.js meldet das).
+let ueberdeckt = false;
+const ueberdecktHoerer = new Set();
+
+export function setzeUeberdeckt(wert) {
+  if (wert === ueberdeckt) return;
+  ueberdeckt = wert;
+  ueberdecktHoerer.forEach((f) => { try { f(wert); } catch (e) { console.error(e); } });
+}
+export const istUeberdeckt = () => ueberdeckt;
+export function beiUeberdeckt(f) { ueberdecktHoerer.add(f); }
+
+/**
+ * Wächter für die Ebenen (F2): Eine Ebene, die nicht mehr im Dokument hängt, sperrt nie die App;
+ * ohne offene Ebene ist die App nie `inert`. Läuft alle 2 s und beim Zurückkommen in die App.
+ */
+export function starteWaechter() {
+  const pruefe = () => {
+    let repariert = false;
+    for (let i = stapel.length - 1; i >= 0; i--) {
+      if (!stapel[i].isConnected) { stapel.splice(i, 1); repariert = true; }
+    }
+    const app = document.getElementById('app');
+    if (repariert || (app.inert && stapel.length === 0)) {
+      aktualisiereInert();
+      protokolliere('Sperre gelöst', 'Oberfläche war ohne offenes Fenster gesperrt.');
+    }
+  };
+  setInterval(pruefe, 2000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pruefe(); });
+}
 
 function aktualisiereInert() {
   document.getElementById('app').inert = stapel.length > 0;
@@ -157,10 +232,11 @@ export function sheetKopf(titel, schliessen, klasse = '') {
 export const griff = () => h('div', { class: 'grabber' });
 
 /**
- * Alert im iOS-Stil. knoepfe: [{ id, label, fett, beiTipp }]. `beiTipp` läuft synchron im Tipp,
- * nötig für das Teilen-Menü, das eine frische Nutzeraktion verlangt.
+ * Alert im iOS-Stil. knoepfe: [{ id, label, fett, rot, beiTipp }]. `beiTipp` läuft synchron im Tipp,
+ * nötig für das Teilen-Menü, das eine frische Nutzeraktion verlangt. aussenNein: Antippen der
+ * Abdunklung schließt den Alert (Ergebnis null, wie „Nein“). textGrau: Text in --text-2 (Design 0.5.2).
  */
-export function zeigeAlert({ titel, text, knoepfe }) {
+export function zeigeAlert({ titel, text, knoepfe, aussenNein = false, textGrau = false }) {
   return new Promise((fertig) => {
     const ebene = h('div', { class: 'ebene ebene-alert' });
     let gewaehlt = false;
@@ -173,9 +249,9 @@ export function zeigeAlert({ titel, text, knoepfe }) {
       fertig(k.id);
     };
     ebene.append(
-      h('div', { class: 'dim' }),
+      h('div', { class: 'dim', onclick: aussenNein ? () => ebene.zu() : null }),
       h('div', { class: 'alert', role: 'alertdialog', 'aria-modal': 'true' },
-        h('div', { class: 'alert-text' }, h('h3', { text: titel }), h('p', { text })),
+        h('div', { class: 'alert-text' }, h('h3', { text: titel }), h('p', { text, class: textGrau ? 'grau' : null })),
         h('div', { class: `acts ${knoepfe.length === 3 ? 'gestapelt' : ''}`.trim() },
           knoepfe.map((k) => h('button', {
             type: 'button',
@@ -190,14 +266,14 @@ export function zeigeAlert({ titel, text, knoepfe }) {
 let aktuellerHinweis = null;
 
 /**
- * Hinweis oben über allem: nach ca. 4 s weg, nach oben wegwischbar, Antippen schließt ihn;
- * ohne Ton und Vibration. Ein neuer Hinweis ersetzt den alten (nie zwei übereinander).
+ * Hinweis oben über allem: nach `dauer` ms (Standard ca. 4 s) weg, nach oben wegwischbar, Antippen
+ * schließt ihn; ohne Ton und Vibration. Ein neuer Hinweis ersetzt den alten (nie zwei übereinander).
  */
-export function zeigeHinweis({ titel, text, iconName = 'i-check', einzeilig = false }) {
+export function zeigeHinweis({ titel, text = '', iconName = 'i-check', einzeilig = false, dauer = 4000 }) {
   aktuellerHinweis?.();
   const el = h('div', { class: `banner ${einzeilig ? 'einzeilig' : ''}`.trim(), role: 'status' },
     h('div', { class: 'ico' }, icon(iconName)),
-    h('div', { class: 'banner-text' }, h('b', { text: titel }), h('span', { text })));
+    h('div', { class: 'banner-text' }, h('b', { text: titel }), text && h('span', { text })));
   el.addEventListener('click', () => weg());
 
   let timer;
@@ -214,7 +290,12 @@ export function zeigeHinweis({ titel, text, iconName = 'i-check', einzeilig = fa
   el.getBoundingClientRect();
   el.classList.add('offen');
   wischen(el, el, -1, weg);
-  timer = setTimeout(weg, 4000);
+  timer = setTimeout(weg, dauer);
+}
+
+/** Meldung, wenn Speichern nach Zeitlimit und Wiederholung nicht geklappt hat (Design 0.5.2, Punkt 2). */
+export function zeigeSpeicherFehler() {
+  zeigeHinweis({ titel: 'Speichern hat nicht geklappt – nochmal tippen', iconName: 'i-x', dauer: 8000 });
 }
 
 /** Hält Sheets über der iOS-Tastatur, die den Layout-Viewport nicht verkleinert. */
@@ -228,103 +309,4 @@ export function folgeTastatur() {
   vv.addEventListener('resize', aktualisiere);
   vv.addEventListener('scroll', aktualisiere);
   aktualisiere();
-}
-
-const RAND_PX = 20;
-const reduziert = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-/**
- * Zurück per Wischen vom linken Rand (Screen 14): Start nur in den linken 20 px, erst ab
- * |dx| > |dy| und dx > 10 px. Abschluss ab 35 % Breite oder > 0,5 px/ms (250 ms), sonst
- * zurückfedern (200 ms). Gesperrt bei offenem Sheet/Alert und offener Tastatur.
- * darunter(): Elemente, die unter der Seite hervorschauen (Parallaxe ab −30 %).
- */
-export function randWischen(seite, { darunter, beiZurueck }) {
-  const schatten = h('div', { class: 'wisch-dim', hidden: true });
-  document.getElementById('app').append(schatten);
-  let zug = null;
-
-  const gesperrt = () => stapel.length > 0
-    || document.activeElement?.matches?.('input, textarea')
-    || parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tastatur')) > 0;
-
-  const setze = (dx, dauer = 0, ease = 'ease-out') => {
-    const breite = seite.offsetWidth || window.innerWidth;
-    const anteil = Math.min(1, Math.max(0, dx / breite));
-    const uebergang = dauer ? `${dauer}ms ${ease}` : 'none';
-    if (reduziert()) {
-      seite.style.transition = dauer ? `opacity ${uebergang}` : 'none';
-      seite.style.transform = 'none';
-      seite.style.opacity = String(1 - anteil);
-      return;
-    }
-    seite.style.transition = dauer ? `transform ${uebergang}` : 'none';
-    seite.style.transform = `translateX(${dx}px)`;
-    for (const el of zug.unten) {
-      el.style.transition = dauer ? `transform ${uebergang}` : 'none';
-      el.style.transform = `translateX(${(-30 * (1 - anteil)).toFixed(2)}%)`;
-    }
-    schatten.style.transition = dauer ? `opacity ${uebergang}` : 'none';
-    schatten.style.opacity = String(1 - anteil);
-  };
-
-  const aufraeumen = () => {
-    for (const el of [seite, ...(zug?.unten || [])]) {
-      el.style.transition = '';
-      el.style.transform = '';
-      el.style.opacity = '';
-    }
-    seite.classList.remove('wischt');
-    schatten.hidden = true;
-    zug = null;
-  };
-
-  seite.addEventListener('pointerdown', (e) => {
-    if (zug?.aktiv || !e.isPrimary || e.clientX > RAND_PX || seite.hidden || !seite.classList.contains('offen') || gesperrt()) return;
-    zug = { id: e.pointerId, x: e.clientX, y: e.clientY, aktiv: false, unten: [], punkte: [{ x: e.clientX, t: e.timeStamp }] };
-  }, true);
-
-  seite.addEventListener('pointermove', (e) => {
-    if (!zug || e.pointerId !== zug.id || zug.fertig) return;
-    const dx = e.clientX - zug.x;
-    const dy = e.clientY - zug.y;
-    if (!zug.aktiv) {
-      if (Math.abs(dx) <= 10 && Math.abs(dy) <= 10) return;
-      if (!(dx > 10 && Math.abs(dx) > Math.abs(dy))) { zug = null; return; }
-      zug.aktiv = true;
-      zug.unten = reduziert() ? [] : darunter();
-      try { seite.setPointerCapture(e.pointerId); } catch { /* bereits beendet */ }
-      seite.classList.add('wischt');
-      schatten.hidden = reduziert();
-    }
-    e.preventDefault();
-    zug.punkte.push({ x: e.clientX, t: e.timeStamp });
-    if (zug.punkte.length > 5) zug.punkte.shift();
-    setze(Math.max(0, dx));
-  }, true);
-
-  const ende = (e) => {
-    if (!zug || e.pointerId !== zug.id || zug.fertig) return;
-    if (!zug.aktiv) { zug = null; return; }
-    zug.fertig = true;
-    const dx = Math.max(0, e.clientX - zug.x);
-    const p = zug.punkte;
-    const dt = p.length > 1 ? p.at(-1).t - p[0].t : 0;
-    const tempo = dt > 0 ? (p.at(-1).x - p[0].x) / dt : 0;
-    const breite = seite.offsetWidth || window.innerWidth;
-    // Der folgende Klick darf nichts auslösen.
-    const schlucke = (k) => { k.stopPropagation(); k.preventDefault(); };
-    window.addEventListener('click', schlucke, { capture: true, once: true });
-    setTimeout(() => window.removeEventListener('click', schlucke, { capture: true }), 400);
-    if (e.type !== 'pointercancel' && (dx > breite * 0.35 || tempo > 0.5)) {
-      const dauer = reduziert() ? 200 : 250;
-      setze(breite, dauer);
-      setTimeout(() => { aufraeumen(); beiZurueck(); }, dauer);
-    } else {
-      setze(0, 200);
-      setTimeout(aufraeumen, 200);
-    }
-  };
-  seite.addEventListener('pointerup', ende, true);
-  seite.addEventListener('pointercancel', ende, true);
 }
