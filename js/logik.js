@@ -19,6 +19,13 @@ export function eintraegeVon(daten, trainingId) {
   return [...daten.saetze, ...daten.cardio].filter((e) => e.trainingId === trainingId);
 }
 
+/**
+ * 0.6.0 (Entscheidung 17.11.): Der Plan-Stand schaltet nur weiter, wenn das Training mindestens einen
+ * Arbeitssatz oder einen Cardio-Eintrag hat. Ein Training nur mit Aufwärmsätzen zählt nicht.
+ * Cardio-Einträge haben kein Feld `aufwaermen` und zählen daher.
+ */
+export const zaehltFuerPlan = (eintraege) => eintraege.some((e) => e.aufwaermen !== true);
+
 /** Trainings, die mindestens einen Satz oder Cardio-Eintrag haben. */
 function trainingsMitEintraegen(daten) {
   const ids = new Set([...daten.saetze, ...daten.cardio].map((e) => e.trainingId));

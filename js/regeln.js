@@ -1,6 +1,7 @@
 // Trainingslogik ohne Oberfläche und ohne Datenbank: Gewichtsvorschlag, Ziel-Wdh., Aufwärmgewicht,
-// Rekorde und „Als Nächstes dran“. Regeln und Testfälle: Agent Trainingsexperte.
+// Rekorde, „Als Nächstes dran“ und Trainingsplan (0.6.0). Regeln und Testfälle: Agent Trainingsexperte.
 // Nur Arbeitssätze zählen; Aufwärmsätze werden hier immer herausgefiltert.
+import { VORLAGEN } from './startdaten.js';
 
 const rund = (x, stellen = 3) => Math.round(x * 10 ** stellen) / 10 ** stellen;
 
@@ -199,4 +200,55 @@ export function alsNaechstesDran(arten, zuletzt) {
     if (!best || tagNummer(iso) < tagNummer(best.zuletzt)) best = { art, zuletzt: iso };
   }
   return best;
+}
+
+// ---------- Trainingsplan (0.6.0, Backlog #39) ----------
+// Eine Vorlage ist ein Zyklus von Trainingsart-IDs (Tage). Der Stand je Vorlage ist der Index des
+// zuletzt trainierten Tags (null = keiner). Ein Tag ohne Treffer ändert den Stand nicht.
+
+const istIndex = (w, n) => Number.isInteger(w) && w >= 0 && w < n;
+
+/**
+ * Neuer Stand nach einem beendeten Training der Art `artId` (nur wenn es mindestens einen Eintrag hat).
+ * Nächster Tag mit dieser Art zyklisch vorwärts nach L; ohne Stand ab dem ersten Tag. Gibt es keinen
+ * Tag mit dieser Art, bleibt L. Liegt der Treffer bei L selbst, bleibt L (idempotent).
+ */
+export function aktualisiereStand(vorlage, L, artId) {
+  const tage = vorlage.tage;
+  const n = tage.length;
+  const start = L === null || L === undefined ? 0 : (L + 1) % n;
+  for (let k = 0; k < n; k++) {
+    const i = (start + k) % n;
+    if (tage[i] === artId) return i;
+  }
+  return L ?? null;
+}
+
+/** Vorschlag = Tag (L + 1) im Zyklus; ohne Stand der erste Tag. Liefert { index, artId, n }. */
+export function planVorschlag(vorlage, L) {
+  const n = vorlage.tage.length;
+  const index = L === null || L === undefined ? 0 : (L + 1) % n;
+  return { index, artId: vorlage.tage[index], n };
+}
+
+/**
+ * Prüft Trainingsplan-Daten aus dem Speicher oder aus einer Sicherung streng. Liefert
+ * { vorlage, stand } oder null (= ohne Plan, kein Stand). Ungültig ist alles, was nicht passt:
+ * unbekannte Vorlage, unbekannte Stand-ID, Index außerhalb des Zyklus.
+ */
+export function pruefeTrainingsplan(roh, vorlagen = VORLAGEN) {
+  if (!roh || typeof roh !== 'object' || Array.isArray(roh)) return null;
+  const nach = new Map(vorlagen.map((v) => [v.id, v]));
+  const vorlage = roh.vorlage ?? null;
+  if (vorlage !== null && !nach.has(vorlage)) return null;
+  const stand = roh.stand ?? {};
+  if (typeof stand !== 'object' || Array.isArray(stand)) return null;
+  const ergebnis = {};
+  for (const [id, idx] of Object.entries(stand)) {
+    const v = nach.get(id);
+    if (!v) return null;
+    if (idx !== null && !istIndex(idx, v.tage.length)) return null;
+    ergebnis[id] = idx;
+  }
+  return { vorlage, stand: ergebnis };
 }

@@ -8,11 +8,12 @@ import * as db from './db.js';
 import { datumKurz, tageText, tagKurz, uhrzeit } from './format.js';
 import {
   FORTFUEHREN_MS, chipText, eintraegeVon, faelligesEnde, fortfuehrbar, karteVorschlagText, letzteUebungen, letztesMalIndex,
-  letztesTrainingDerArt, nachZeit, vorschauText, zuletztProArt
+  letztesTrainingDerArt, nachZeit, vorschauText, zuletztProArt, zaehltFuerPlan
 } from './logik.js';
-import { alsNaechstesDran, neueRekorde, rekordHinweis } from './regeln.js';
+import { alsNaechstesDran, neueRekorde, planVorschlag, rekordHinweis } from './regeln.js';
 import { oeffneSatz } from './satz.js';
-import { registerTabActivation, setzeArten, zeigeTab } from './tabs.js';
+import { fokusiereTrainingsplan, registerTabActivation, setzeArten, setzePlanZeile, zeigeTab } from './tabs.js';
+import { oeffnePlanWahl, planWert, vorlageVon } from './trainingsplan.js';
 import { protokolliere } from './fehlerprotokoll.js';
 import { zeigeTrainingsUebersicht } from './muskel-figur.js';
 import { aktualisierePunkt, frageJetztSichern } from './sicherung-sheet.js';
@@ -49,6 +50,8 @@ let fortfuehrenTimer = null; // blendet die Zeile „Training fortführen“ gen
 // festgehalten und gilt bis zum Beenden bzw. App-Neustart (nur im Speicher der Sitzung).
 let festVorschlag = null; // { trainingId, letztesMal: Map }
 let kgGefragt = false; // automatische Abfrage des Körpergewichts schon gezeigt
+// 0.6.0 (#39): Trainingsplan { vorlage, stand } oder null (= ohne Plan, kein Stand). Wird in ladeUndZeige gelesen.
+let aktPlan = null;
 
 export function initTraining(app) {
   trainingInhalt = h('div', { class: 'training-scroll' });
@@ -119,14 +122,17 @@ export async function ladeUndZeige({ start = false, ziel = null, fehlerAlert = t
     daten = await db.leseDaten();
     let geaendert = false;
     for (const t of daten.trainings.filter((x) => x.endedAt === null)) {
-      const ende = faelligesEnde(t, eintraegeVon(daten, t.id));
+      const eintraegeDort = eintraegeVon(daten, t.id);
+      const ende = faelligesEnde(t, eintraegeDort);
       if (!ende) continue;
       // Ohne jeden Satz wird verworfen, sonst endet das Training 3 Std. nach dem letzten Satz.
+      // 0.6.0: Auto-Ende zählt wie Beenden: Plan-Stand nur mit Arbeitssatz oder Cardio-Eintrag.
       if (ende.leer) await db.loescheTraining(t.id);
-      else await db.speichereTraining({ ...t, endedAt: ende.endedAt });
+      else await db.speichereTrainingEnde({ ...t, endedAt: ende.endedAt }, zaehltFuerPlan(eintraegeDort));
       geaendert = true;
     }
     if (geaendert) daten = await db.leseDaten();
+    aktPlan = await db.leseTrainingsplan();
     if (start) [entwurf, letzteAnsicht] = await Promise.all([db.leseEntwurfSatz(), db.leseLetzteAnsicht()]);
     kgGefragt = await db.leseKoerpergewichtGefragt();
   } catch {
@@ -185,6 +191,34 @@ export async function ladeUndZeige({ start = false, ziel = null, fehlerAlert = t
   return true;
 }
 
+/** Karte „Als Nächstes dran“ ohne Plan: wie bisher, die Art, die am längsten her ist. */
+function karteOhnePlan(zuletzt) {
+  const n = alsNaechstesDran(sortierteArten(), zuletzt);
+  return n && { art: n.art, nebentext: `zuletzt ${tageText(n.zuletzt)}`, beiTipp: () => oeffneVorschau(n.art) };
+}
+
+/**
+ * Karte mit Plan (0.6.0): der Vorschlag ist Tag L+1 im Zyklus, auch wenn die Art nie trainiert war
+ * („noch nie trainiert“, Entscheidung a). Zähler „Tag n von m“ zum Vorschlag.
+ */
+function karteMitPlan(vorlage, zuletzt) {
+  const v = planVorschlag(vorlage, aktPlan.stand[vorlage.id] ?? null);
+  const art = artVon(v.artId);
+  if (!art) return null;
+  const iso = zuletzt.get(v.artId);
+  const wann = iso ? `zuletzt ${tageText(iso)}` : 'noch nie trainiert';
+  return { art, nebentext: `${wann} · Tag ${v.index + 1} von ${v.n}`, beiTipp: () => oeffneVorschau(art) };
+}
+
+/** Auswahl-Sheet „Trainingsplan“ aus der Zeile; nach dem Speichern neu zeichnen. */
+function oeffnePlan() {
+  oeffnePlanWahl({
+    plan: aktPlan,
+    beiGeaendert(neu) { aktPlan = neu; zeichneStart(); },
+    zurueck: fokusiereTrainingsplan
+  });
+}
+
 function zeichneStart() {
   const anzahl = laufend ? eintraegeVon(daten, laufend.id).length : 0;
   const lauft = laufend && {
@@ -193,13 +227,16 @@ function zeichneStart() {
     beiFortsetzen: zumTraining
   };
   const zuletzt = zuletztProArt(daten);
-  const naechste = laufend ? null : alsNaechstesDran(sortierteArten(), zuletzt);
+  const vorlage = vorlageVon(aktPlan?.vorlage);
+  let naechste = null;
+  if (!laufend) naechste = vorlage ? karteMitPlan(vorlage, zuletzt) : karteOhnePlan(zuletzt);
   const ff = laufend ? null : fortfuehrbar(daten);
   const ffArt = ff && artVon(ff.training.artId);
   clearTimeout(fortfuehrenTimer);
   fortfuehrenTimer = ff ? setTimeout(zeichneStart, Date.parse(ff.training.endedAt) + FORTFUEHREN_MS - Date.now() + 50) : null;
-  setzeArten(sortierteArten(), zuletzt, artAntippen, lauft || null,
-    naechste && { ...naechste, beiTipp: () => oeffneVorschau(naechste.art) },
+  // 0.6.0: Zeile „Trainingsplan“ nur ohne laufendes Training (Design: nicht mitten im Training).
+  setzePlanZeile(laufend ? null : { wert: planWert(aktPlan), beiTipp: oeffnePlan });
+  setzeArten(sortierteArten(), zuletzt, artAntippen, lauft || null, naechste,
     ffArt ? { art: ffArt, minuten: ff.minuten, beiTipp: () => fortfuehren(ff.training.id) } : null);
 }
 
@@ -688,8 +725,10 @@ const beendenSpeichern = einmalig(async () => {
   const anzahlUebungen = new Set(alle.map((e) => e.uebungId)).size;
   const gespeichert = `${art?.name || 'Das Training'} mit ${anzahlUebungen} ${anzahlUebungen === 1 ? 'Übung' : 'Übungen'} und ${alle.length} ${alle.length === 1 ? 'Satz' : 'Sätzen'} ist gespeichert.`;
   const beendet = { ...training, endedAt: new Date().toISOString() };
+  let neuerPlan;
   try {
-    await mitSpeicherstatus(() => db.speichereTraining(beendet));
+    // 0.6.0: Ende-Datum und Plan-Stand in einer Transaktion. Der Stand zählt nur mit Arbeitssatz oder Cardio.
+    neuerPlan = await mitSpeicherstatus(() => db.speichereTrainingEnde(beendet, zaehltFuerPlan(alle)));
   } catch {
     zeigeSpeicherFehler();
     return;
@@ -697,6 +736,7 @@ const beendenSpeichern = einmalig(async () => {
   // Ab hier ist das Training beendet. Nur noch der Speicher im Arbeitsspeicher wird angepasst.
   const i = daten.trainings.findIndex((t) => t.id === beendet.id);
   if (i >= 0) daten.trainings[i] = beendet;
+  aktPlan = neuerPlan;
   laufend = null;
   festVorschlag = null;
   clearInterval(pruefTimer);
