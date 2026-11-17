@@ -481,3 +481,11 @@ svg.i.speicher-nein{color:var(--text-2)}
 .protokoll-zeit{font-size:13px;line-height:18px;color:var(--text-2);font-variant-numeric:tabular-nums}
 .protokoll-art{font-size:17px;line-height:22px;font-weight:600}
 .protokoll-text{font-size:15px;line-height:20px;color:var(--text-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* 0.6.0 (#39): Trainingsplan – Zeile im Tab Training, Auswahl-Sheet, fokussierbare Karte */
+.list.plan-liste{margin-top:8px}
+.list.oben-24{margin-top:24px}
+.row.plan-zeile-row{min-height:56px;padding:8px 16px;gap:8px}
+.row .plan-wert{min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.haken-platz{width:20px;height:20px;flex:none;display:flex;align-items:center;justify-content:center}
+.next:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

@@ -1,7 +1,8 @@
 // IndexedDB: Stores, Migrationen, Startdaten und die atomaren Schreibvorgänge.
 import { DB_NAME, IST_VORSCHAU } from './umgebung.js';
 import { protokolliere } from './fehlerprotokoll.js';
-import { TRAININGSARTEN, STARTLISTE, STANDARD_MODUS, startModus } from './startdaten.js';
+import { TRAININGSARTEN, STARTLISTE, STANDARD_MODUS, startModus, VORLAGEN } from './startdaten.js';
+import { aktualisiereStand, pruefeTrainingsplan } from './regeln.js';
 
 export const SCHEMA_VERSION = 2;
 
@@ -31,6 +32,7 @@ const META_ANSICHT = 'letzteAnsicht';
 const META_KG_GEFRAGT = 'koerpergewichtGefragt';
 const META_VERSION = 'geseheneVersion';
 const META_HAUPTUEBUNGEN = 'hauptuebungen';
+const META_TRAININGSPLAN = 'trainingsplan';
 
 export const KOERPERGEWICHT_ID = 'aktuell';
 
@@ -317,13 +319,47 @@ function mitStartdaten(daten) {
 /** Aktueller Stand für das Sicherungs-Sheet. */
 export function leseStand() {
   return mitTransaktion([...DATEN_STORES, META, KOPIE], 'readonly', async (t) => {
-    const [daten, letzteSicherung, kopie] = await Promise.all([
+    const [daten, letzteSicherung, kopie, hauptuebungen, plan] = await Promise.all([
       leseAlles(t),
       leseMeta(t, META_LETZTE_SICHERUNG),
-      anfrage(t.objectStore(KOPIE).get(KOPIE_ID))
+      anfrage(t.objectStore(KOPIE).get(KOPIE_ID)),
+      leseMeta(t, META_HAUPTUEBUNGEN),
+      leseMeta(t, META_TRAININGSPLAN)
     ]);
-    return { daten, letzteSicherung, kopie: kopie || null };
+    return { daten, letzteSicherung, kopie: kopie || null, hauptuebungen, trainingsplan: pruefeTrainingsplan(plan) };
   }, { was: 'Sicherung lesen' });
+}
+
+/** Trainingsplan { vorlage, stand } oder null (= ohne Plan, kein Stand). Fehlt er, gilt „ohne Plan“. */
+export function leseTrainingsplan() {
+  return mitTransaktion([META], 'readonly', async (t) => pruefeTrainingsplan(await leseMeta(t, META_TRAININGSPLAN)),
+    { was: 'Trainingsplan laden' });
+}
+
+/** Wahl der Vorlage (oder null = ohne Plan). Der Stand je Vorlage bleibt erhalten. */
+export function setzeTrainingsplan(plan) {
+  return mitTransaktion([META], 'readwrite', (t) => {
+    schreibeMeta(t, META_TRAININGSPLAN, plan);
+  }, { idempotent: true, was: 'Trainingsplan speichern' });
+}
+
+/**
+ * Beenden eines Trainings: Ende-Datum und – nur wenn das Training mindestens einen Eintrag hat und eine
+ * Vorlage gewählt ist – der neue Plan-Stand in EINER Transaktion. Idempotent: Der Stand wird aus dem
+ * gespeicherten Stand und der Art des Trainings berechnet, ein zweites Beenden ändert nichts mehr.
+ * Liefert den Plan nach dem Schreiben (oder null).
+ */
+export function speichereTrainingEnde(training, zaehlt) {
+  return mitTransaktion(['trainings', META], 'readwrite', async (t) => {
+    t.objectStore('trainings').put(training);
+    const plan = pruefeTrainingsplan(await leseMeta(t, META_TRAININGSPLAN));
+    if (!zaehlt || !plan?.vorlage) return plan;
+    const vorlage = VORLAGEN.find((v) => v.id === plan.vorlage);
+    const neu = aktualisiereStand(vorlage, plan.stand[vorlage.id] ?? null, training.artId);
+    const neuerPlan = { ...plan, stand: { ...plan.stand, [vorlage.id]: neu } };
+    schreibeMeta(t, META_TRAININGSPLAN, neuerPlan);
+    return neuerPlan;
+  }, { idempotent: true, was: 'Training beenden' });
 }
 
 export function setzeLetzteSicherung(iso) {
@@ -335,21 +371,28 @@ export function setzeLetzteSicherung(iso) {
 /**
  * Ersetzt alle Daten durch den Inhalt einer geprüften Sicherung. Interne Kopie und Ersetzen
  * laufen in einer einzigen Transaktion: Scheitert ein Schritt, bleibt der alte Stand vollständig.
+ * hauptuebungen, trainingsplan: aus der Sicherung (null = Voreinstellung bzw. ohne Plan, kein Stand).
  */
-export function importiere(daten, exportiertAm, { mitKopie }) {
+export function importiere(daten, exportiertAm, { mitKopie, hauptuebungen = null, trainingsplan = null }) {
   return mitTransaktion(ALLE_STORES, 'readwrite', async (t) => {
     if (mitKopie) {
-      const [alt, letzteSicherung] = await Promise.all([leseAlles(t), leseMeta(t, META_LETZTE_SICHERUNG)]);
+      const [alt, letzteSicherung, altHaupt, altPlan] = await Promise.all([
+        leseAlles(t), leseMeta(t, META_LETZTE_SICHERUNG), leseMeta(t, META_HAUPTUEBUNGEN), leseMeta(t, META_TRAININGSPLAN)
+      ]);
       t.objectStore(KOPIE).put({
         id: KOPIE_ID,
         erstelltAm: new Date().toISOString(),
         schemaVersion: SCHEMA_VERSION,
         letzteSicherung,
+        hauptuebungen: altHaupt,
+        trainingsplan: altPlan,
         daten: alt
       });
     }
     ersetzeDaten(t, mitStartdaten(daten));
     schreibeMeta(t, META_LETZTE_SICHERUNG, exportiertAm);
+    schreibeMeta(t, META_HAUPTUEBUNGEN, hauptuebungen);
+    schreibeMeta(t, META_TRAININGSPLAN, trainingsplan);
   }, { was: 'Import' });
 }
 
@@ -360,6 +403,10 @@ export function machImportRueckgaengig() {
     if (!kopie) throw new Error('Keine interne Kopie vorhanden');
     ersetzeDaten(t, ergaenzeDaten(kopie.daten, kopie.schemaVersion));
     schreibeMeta(t, META_LETZTE_SICHERUNG, kopie.letzteSicherung);
+    // Kopien vor 0.5.4 kennen die Hauptübungen nicht: dann bleiben die aktuellen Sterne.
+    if ('hauptuebungen' in kopie) schreibeMeta(t, META_HAUPTUEBUNGEN, kopie.hauptuebungen);
+    // Kopien vor 0.6.0 kennen den Trainingsplan nicht: dann bleibt der aktuelle Plan.
+    if ('trainingsplan' in kopie) schreibeMeta(t, META_TRAININGSPLAN, kopie.trainingsplan);
     t.objectStore(KOPIE).delete(KOPIE_ID);
     return kopie;
   }, { was: 'Import rückgängig' });

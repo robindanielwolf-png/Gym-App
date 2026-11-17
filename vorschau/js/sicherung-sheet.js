@@ -55,7 +55,7 @@ function exportiere() {
   drehen(true);
 
   const jetzt = new Date();
-  const sicherung = baueSicherung(stand.daten, jetzt);
+  const sicherung = baueSicherung(stand.daten, jetzt, { hauptuebungen: stand.hauptuebungen, trainingsplan: stand.trainingsplan });
   const datei = new File([JSON.stringify(sicherung)], dateiname(jetzt), { type: 'application/json' });
 
   const kannTeilen = typeof navigator.canShare === 'function' && navigator.canShare({ files: [datei] });
@@ -82,7 +82,11 @@ function exportiere() {
 
 async function fuehreImportAus(pruefung, inhalt, datum, mitKopie) {
   try {
-    await db.importiere(pruefung.daten, pruefung.exportiertAm, { mitKopie });
+    await db.importiere(pruefung.daten, pruefung.exportiertAm, {
+      mitKopie,
+      hauptuebungen: pruefung.einstellungen.hauptuebungen,
+      trainingsplan: pruefung.einstellungen.trainingsplan
+    });
     meldeAenderung();
     await ladeStand();
   } catch {

@@ -207,3 +207,13 @@ export const MUSKELN_JE_UEBUNG = {
   's-trizeps-dips-stuhl': { p: ['triceps'], s: ['chest', 'deltoids'] },
   's-burpees': { p: [], s: ['chest', 'quadriceps', 'deltoids', 'abs'] },
 };
+
+// Trainingsplan (0.6.0, Backlog #39): vier feste Vorlagen, nicht bearbeitbar. Ein Tag = eine
+// Trainingsart (ID aus TRAININGSARTEN). Die Reihenfolge ist der Zyklus. Die IDs sind fest, denn der
+// Stand und die Sicherung verweisen auf sie.
+export const VORLAGEN = [
+  { id: 'ppl', name: 'Push / Pull / Beine', tage: ['push', 'pull', 'beine'] },
+  { id: 'arnold', name: 'Arnold-Split', tage: ['ruecken-brust', 'schulter-arme', 'beine'] },
+  { id: 'upperlower', name: 'Upper / Lower', tage: ['oberkoerper', 'unterkoerper'] },
+  { id: 'mischung', name: 'Mischung PPL + Arnold', tage: ['push', 'pull', 'beine', 'ruecken-brust', 'schulter-arme'] }
+];

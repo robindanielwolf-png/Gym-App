@@ -1,14 +1,36 @@
 // Aufbau und Prüfung der Sicherungsdatei. Ohne Zugriff auf Oberfläche oder Datenbank.
 import { SCHEMA_VERSION, STORE_SEIT_SCHEMA, DATEN_STORES, ergaenzeDaten } from './db.js';
 import { GERAETE, MODI, STARTLISTE } from './startdaten.js';
+import { pruefeTrainingsplan } from './regeln.js';
 import { APP_VERSION } from './version.js';
 
 const FORMAT = 'gym-tracker-sicherung';
 const GERAETE_IDS = new Set(GERAETE.map((g) => g.id));
 const MODUS_IDS = new Set(MODI.map((m) => m.id));
 
-export function baueSicherung(daten, jetzt = new Date()) {
-  return { format: FORMAT, schemaVersion: SCHEMA_VERSION, appVersion: APP_VERSION, exportiertAm: jetzt.toISOString(), daten };
+// Höchstens so viele Hauptübungen (Sterne unter Mehr → Rekorde), siehe rekorde.js.
+const HAUPT_MAX = 4;
+
+/**
+ * `einstellungen` steht neben `daten` und ist optional (seit 0.5.4): Ältere App-Versionen
+ * überspringen den Teil beim Import, ältere Sicherungen haben ihn nicht.
+ * hauptuebungen: Liste der Übungs-IDs oder null (= Voreinstellung).
+ * trainingsplan (0.6.0): { vorlage, stand } oder null (= ohne Plan, kein Stand).
+ */
+export function baueSicherung(daten, jetzt = new Date(), { hauptuebungen = null, trainingsplan = null } = {}) {
+  return {
+    format: FORMAT, schemaVersion: SCHEMA_VERSION, appVersion: APP_VERSION, exportiertAm: jetzt.toISOString(),
+    daten,
+    einstellungen: { hauptuebungen: pruefeHauptuebungen(hauptuebungen), trainingsplan: pruefeTrainingsplan(trainingsplan) }
+  };
+}
+
+/** Gültig: Liste mit höchstens 4 verschiedenen IDs (Text). Sonst null = Voreinstellung. */
+export function pruefeHauptuebungen(ids) {
+  if (!Array.isArray(ids) || ids.length > HAUPT_MAX) return null;
+  if (!ids.every((id) => typeof id === 'string' && id.length > 0)) return null;
+  if (new Set(ids).size !== ids.length) return null;
+  return [...ids];
 }
 
 export function dateiname(jetzt = new Date()) {
@@ -73,7 +95,12 @@ function datenGueltig(d) {
   return arten && uebungen && trainings && laufend && saetze && cardio && koerpergewicht;
 }
 
-/** Prüft den vollständigen Dateiinhalt. Liefert die aufbereiteten Daten oder null. */
+/**
+ * Prüft den vollständigen Dateiinhalt. Liefert die aufbereiteten Daten oder null.
+ * Fehlt `einstellungen` (Sicherung vor 0.5.4) oder ist der Teil ungültig, gilt für die
+ * Hauptübungen die Voreinstellung (null). Ein ungültiger Einstellungs-Teil macht die
+ * Sicherung nicht unbrauchbar.
+ */
 export function pruefeSicherung(text) {
   let datei;
   try {
@@ -96,5 +123,13 @@ export function pruefeSicherung(text) {
 
   ergaenzeDaten(daten, schemaVersion);
   if (!datenGueltig(daten)) return null;
-  return { exportiertAm, daten };
+  const einstellungen = istObjekt(datei.einstellungen) ? datei.einstellungen : {};
+  return {
+    exportiertAm,
+    daten,
+    einstellungen: {
+      hauptuebungen: pruefeHauptuebungen(einstellungen.hauptuebungen),
+      trainingsplan: pruefeTrainingsplan(einstellungen.trainingsplan)
+    }
+  };
 }
